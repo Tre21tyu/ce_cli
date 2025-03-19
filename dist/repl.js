@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.WorkCliRepl = void 0;
+exports.CeCliRepl = void 0;
 const inquirer_1 = __importDefault(require("inquirer"));
 const chalk_1 = __importDefault(require("chalk"));
 const banner_1 = require("./utils/banner");
@@ -17,7 +17,7 @@ const stack_1 = require("./commands/stack");
 /**
  * REPL (Read-Eval-Print-Loop) class for interactive CLI
  */
-class WorkCliRepl {
+class CeCliRepl {
     /**
      * Constructor for the REPL
      *
@@ -38,7 +38,7 @@ class WorkCliRepl {
         // Display the ASCII art banner
         console.log((0, banner_1.displayBanner)(this.bannerText));
         // Display welcome message
-        console.log(chalk_1.default.green('Welcome to Work CLI - Your work order management tool'));
+        console.log(chalk_1.default.green('Welcome to ce_cli - Your all in one UofR biomed digital CLI tool!'));
         console.log(chalk_1.default.yellow('Type "help" to see available commands'));
         console.log(''); // Empty line for spacing
     }
@@ -339,4 +339,4 @@ class WorkCliRepl {
         console.log(chalk_1.default.cyan('  exit') + ' - Exit the application');
     }
 }
-exports.WorkCliRepl = WorkCliRepl;
+exports.CeCliRepl = CeCliRepl;

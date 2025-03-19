@@ -9,7 +9,7 @@ async function main() {
     try {
         // Create a new REPL instance
         // You can customize the banner text by passing a string to the constructor
-        const repl = new repl_1.WorkCliRepl('Work CLI');
+        const repl = new repl_1.CeCliRepl('ce_cli');
         // Start the REPL
         await repl.start();
         // Exit with success code

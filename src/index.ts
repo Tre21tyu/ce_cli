@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { WorkCliRepl } from './repl';
+import { CeCliRepl } from './repl';
 
 /**
  * Main entry point for the Work CLI application
@@ -9,7 +9,7 @@ async function main() {
   try {
     // Create a new REPL instance
     // You can customize the banner text by passing a string to the constructor
-    const repl = new WorkCliRepl('Work CLI');
+    const repl = new CeCliRepl('ce_cli');
     
     // Start the REPL
     await repl.start();

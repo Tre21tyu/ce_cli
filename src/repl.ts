@@ -12,7 +12,7 @@ import { stackWorkOrder, displayStack, clearStack } from './commands/stack';
 /**
  * REPL (Read-Eval-Print-Loop) class for interactive CLI
  */
-export class WorkCliRepl {
+export class CeCliRepl {
   private isRunning: boolean = false;
   private bannerText: string = 'ce_cli';
 
@@ -37,7 +37,7 @@ export class WorkCliRepl {
     console.log(displayBanner(this.bannerText));
 
     // Display welcome message
-    console.log(chalk.green('Welcome to Work CLI - Your work order management tool'));
+    console.log(chalk.green('Welcome to ce_cli - Your all in one UofR biomed digital CLI tool!'));
     console.log(chalk.yellow('Type "help" to see available commands'));
     console.log(''); // Empty line for spacing
   }
