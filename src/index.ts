@@ -9,7 +9,7 @@ async function main() {
   try {
     // Create a new REPL instance
     // You can customize the banner text by passing a string to the constructor
-    const repl = new CeCliRepl('ce_cli');
+    const repl = new CeCliRepl('CE_cli');
     
     // Start the REPL
     await repl.start();
