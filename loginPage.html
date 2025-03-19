@@ -1,0 +1,355 @@
+<html xmlns="http://www.w3.org/1999/xhtml"><head id="Head1"><link rel="stylesheet" type="text/css" href="/MMWeb/DXR.axd?r=1_4,2_2,0_93,0_90-l5zOn"><title>
+	MediMizer Mobile WO
+</title><link href="Styles/MMW.css" rel="stylesheet" type="text/css"><meta name="robots" content="noindex"><link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png"><link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png"><link rel="manifest" href="site.webmanifest"><link rel="mask-icon" href="safari-pinned-tab.svg" color="#007dba"><meta name="apple-mobile-web-app-title" content="MediMizer Mobile WO"><meta name="msapplication-TileColor" content="#2d89ef"><meta name="application-name" content="MediMizer Mobile WO"><meta name="msapplication-config" content="/browserconfig.xml"><meta name="msapplication-TileColor" content="#2d89ef"><meta name="theme-color" content="#007dba">
+    <meta name="viewport" content="width=480, user-scalable=no">
+<style></style></head>
+<body>
+   <form method="post" action="./Login.aspx?redirectUrl=%2fMMWeb%2fApp_Pages%2fWOForm.aspx%3fwo%3d1414824%26mode%3dEdit%26tab%3d0" id="form1">
+<div class="aspNetHidden">
+<input type="hidden" name="__EVENTTARGET" id="__EVENTTARGET" value="">
+<input type="hidden" name="__EVENTARGUMENT" id="__EVENTARGUMENT" value="">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwUJMTIzOTAyMjQ3D2QWAmYPZBYCAgMPZBYGAgMPZBYGAgMPPCsABQEADxYCHgVWYWx1ZWVkZAILDxQrAAUPFgIeD0RhdGFTb3VyY2VCb3VuZGdkZGQ8KwAJAQgUKwAEFgQeEkVuYWJsZUNhbGxiYWNrTW9kZWgeJ0VuYWJsZVN5bmNocm9uaXphdGlvbk9uUGVyZm9ybUNhbGxiYWNrIGg8KwAEAQI8KwANAgAWAh4MSW1hZ2VTcGFjaW5nGwAAAAAAABBAAQAAAAwUKwABFgIeC1BhZGRpbmdMZWZ0GwAAAAAAABBAAQAAAA8WAh4KSXNTYXZlZEFsbGcPFCsAAxQrAAEWCB4EVGV4dAUHQVJDSElWRR8ABQEzHghJbWFnZVVybGUeDlJ1bnRpbWVDcmVhdGVkZxQrAAEWCB8HBQRURVNUHwAFATIfCGUfCWcUKwABFggfBwUIVVJNQ0NFWDMfAAUBMR8IZR8JZ2RkZGQCDQ88KwAEAQAPFgIfAGhkZAIFDzwrAAQBAA8WAh8ABVlNb2JpbGUgV29yayBPcmRlciB2ZXJzaW9uIDYuMS4xOCAoMy81LzIwMjUpLCBhIE1vYmlsZVRlY2ggcHJvZHVjdCAmdHJhZGU7IE1lZGlNaXplciwgSW5jLmRkAgcPPCsABAEADxYCHwBlZGQYAQUeX19Db250cm9sc1JlcXVpcmVQb3N0QmFja0tleV9fFgIFKWN0bDAwJENvbnRlbnRQbGFjZUhvbGRlcjEkY2JvRGF0YWJhc2UkREREBSJjdGwwMCRDb250ZW50UGxhY2VIb2xkZXIxJGJ0bkxvZ2luRB8nqfpiey3k1Q/1P7p3PEvojkK/FhlA8HUYqMy2f5Q=">
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+var theForm = document.forms['form1'];
+if (!theForm) {
+    theForm = document.form1;
+}
+function __doPostBack(eventTarget, eventArgument) {
+    if (!theForm.onsubmit || (theForm.onsubmit() != false)) {
+        theForm.__EVENTTARGET.value = eventTarget;
+        theForm.__EVENTARGUMENT.value = eventArgument;
+        theForm.submit();
+    }
+}
+//]]>
+</script>
+
+
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="713F6881">
+</div>
+   <div style="display:flex; flex-direction: column; min-height:100vh;">
+        <div class="wrapper" style="margin: 0; padding:0; flex:1;">
+            <div style="width: 100%; text-align: center; display: block; padding: 2rem 0rem 1rem 0rem; border-bottom: 1px solid #cfcfcf;">
+                <script id="dxis_55418615" src="/MMWeb/DXR.axd?r=1_42,1_75,2_34,2_41,2_33,1_68,1_65,2_36,2_27,2_40-l5zOn" type="text/javascript"></script><img id="imgLogo" src="Images/MM%20Mobile%20WO.PNG" alt="MediMizer Mobile Work Order" align="middle">
+                <br>
+            </div>
+            <div style="display: block; margin: auto;">
+                
+<script type="text/javascript">
+    function btnLogin_ClientClick(s, e) {
+        var rememberDays = 3;
+        //if (chkRememberMe.GetChecked()) {
+            setCookie("LoginEmployeeCode", txtEmployeeCode.GetText(), rememberDays);
+        //}
+        //else {
+            //setCookie("LoginEmployeeCode", "", -5);
+        //}
+        lblLoginError.SetClientVisible(false);
+        e.processOnServer = true;
+    }
+    function setCookie(cname, cvalue, exdays) {
+        var d = new Date();
+        d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000));
+        var expires = "expires=" + d.toGMTString();
+        document.cookie = cname + "=" + cvalue + "; " + expires + "; path=/"
+    }
+</script>
+<style>
+.dxeBase_Aqua , .dxeListBoxItem_Aqua{
+font-weight: 400; font-size: 14px; font-family: "Helvetica Neue","Segoe UI",helvetica,verdana,sans-serif; line-height: 1.35715;}
+.dxeButtonEditButton_Aqua { padding: 0;}
+.dxeEditArea_Aqua { width: 100%; border: 1px solid #ced4da; border-radius:4px; padding: 0.375rem 0.75rem; box-sizing: border-box; font-size: 14px; color: #495057; height: calc(1.5em + 0.75rem + 2px) !important; }
+.dxeListBox_Aqua { border-radius:4px;}
+.dxic { padding:0px !important;}
+#ContentPlaceHolder1_btnLogin_CD{
+background:none; width:394px; display: inline-block; font-weight: 400; color: #fff; text-align: center; vertical-align: middle; padding: 0.375rem 0rem; line-height: 1.5; border-radius: 0.25rem; font-size: 14px;
+}
+#ContentPlaceHolder1_btnLogin_CD span {
+    color: #fff !important;
+}
+.dxbButtonHover_Aqua
+{  width:394px;
+	background: none;
+	border: none;
+}
+.dxbButton_Aqua div.dxbf { border:none;}
+.dxbButton_Aqua {
+border:none !important;
+background:none;
+box-sizing: border-box;
+font-weight: 400;
+color: #212529;
+text-align: center;
+vertical-align: middle;
+padding: 0rem;
+line-height: 1.5;
+border-radius: 0.25rem;
+
+}
+ .dxbButton_Aqua:hover {
+    color: #fff;
+    background-color: #138496;
+    border-color: #117a8b;
+}
+
+ 
+.dxbButtonHover_Aqua:focus{ color: #fff; background-color: #138496; border-color: #117a8b;box-shadow: 0 0 0 0.2rem rgb(58 176 195 / 50%);
+}
+
+input:focus{ outline: 0; box-shadow: 0 0 0 0.2rem rgb(0 123 255 / 25%); border-radius:4px;}
+#ContentPlaceHolder1_btnLogin_CD:focus {outline: 0; border:none;}
+
+#ContentPlaceHolder1_lblLoginError {
+    font-weight: bold;
+    color: red;
+    width: 100%;
+    /*font-size: 1rem;*/
+}
+#ContentPlaceHolder1_txtEmployeeCode_I {
+    text-transform: uppercase;
+}
+</style>
+<br><br><table style="border-style: none; width:100%">
+<tbody><tr>
+    <td style="text-align: center; font-size: 1.5rem; margin-bottom: 0.5rem; font-family: sans-serif;"><h4>Sign In Page</h4></td>
+    
+    
+</tr>
+<tr>
+    <td>
+    <table style="margin: 0 auto; padding-top: 3rem;">
+    <tbody><tr>
+        <td>
+            <label class="dxeBase_Aqua" id="ContentPlaceHolder1_ASPxLabel1">Employee&nbsp;Code:</label>   
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <input type="hidden" id="ContentPlaceHolder1_txtEmployeeCode_Raw" name="ContentPlaceHolder1_txtEmployeeCode_Raw" value=""><table class="dxeTextBoxSys dxeTextBox_Aqua           dxeNullText_Aqua dxh0" cellspacing="0" cellpadding="0" id="ContentPlaceHolder1_txtEmployeeCode" style="border-collapse:collapse; width: 100%; border-radius: 0.25rem; border: 1px solid #a9c4e8; transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;">
+	<tbody><tr>
+		<td class="dxic" style="width:100%;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;"><input class="dxeEditArea_Aqua dxeEditAreaSys           dxh0" name="ctl00$ContentPlaceHolder1$txtEmployeeCode" onkeyup="aspxEKeyUp('ContentPlaceHolder1_txtEmployeeCode', event)" value="Employee Code" id="ContentPlaceHolder1_txtEmployeeCode_I" onchange="aspxEValueChanged('ContentPlaceHolder1_txtEmployeeCode')" onblur="aspxELostFocus('ContentPlaceHolder1_txtEmployeeCode')" onfocus="aspxEGotFocus('ContentPlaceHolder1_txtEmployeeCode')" type="text" onkeydown="aspxEKeyDown('ContentPlaceHolder1_txtEmployeeCode', event)" style="height:15px;" autocomplete="off"></td>
+	</tr>
+</tbody></table><script id="dxss_355608414" type="text/javascript">
+<!--
+aspxAddDisabledItems('ContentPlaceHolder1_txtEmployeeCode',[[['dxeDisabled_Aqua'],[''],['','I']]]);
+document.getElementById("ContentPlaceHolder1_txtEmployeeCode_I").setAttribute("autocomplete", "off");
+
+var dxo = new ASPxClientTextBox('ContentPlaceHolder1_txtEmployeeCode');
+window['txtEmployeeCode'] = dxo;
+dxo.uniqueID = 'ctl00$ContentPlaceHolder1$txtEmployeeCode';
+dxo.RequireStyleDecoration();
+dxo.styleDecoration.AddStyle('F','dxeFocused_Aqua','');
+dxo.styleDecoration.AddStyle('N','dxeNullText_Aqua','');
+dxo.nullText = 'Employee Code';
+dxo.InlineInitialize();
+
+//-->
+</script>
+        </td>
+    </tr>
+    <tr><td>&nbsp;</td></tr>
+    <tr>
+        <td>
+            <label class="dxeBase_Aqua" id="ContentPlaceHolder1_lblPassword">Password:</label>                                     
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <table class="dxeTextBoxSys dxeTextBox_Aqua dxeNullText_Aqua dxh0" cellspacing="0" cellpadding="0" id="ContentPlaceHolder1_txtPassword" style="border-collapse:collapse;width: 100%; border-radius: 0.25rem; border: 1px solid #a9c4e8; transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;">
+	<tbody><tr>
+		<td class="dxic" style="width:100%;padding-left:2px;padding-right:2px;padding-top:2px;padding-bottom:2px;"><input class="dxeEditArea_Aqua dxeEditAreaSys dxh0" id="ContentPlaceHolder1_txtPassword_I" name="ctl00$ContentPlaceHolder1$txtPassword" onfocus="aspxEGotFocus('ContentPlaceHolder1_txtPassword')" onblur="aspxELostFocus('ContentPlaceHolder1_txtPassword')" onkeydown="aspxEKeyDown('ContentPlaceHolder1_txtPassword', event)" onkeyup="aspxEKeyUp('ContentPlaceHolder1_txtPassword', event)" type="password" style="height:15px;"></td>
+	</tr>
+</tbody></table><script id="dxss_1747430897" type="text/javascript">
+<!--
+
+var dxo = new ASPxClientTextBox('ContentPlaceHolder1_txtPassword');
+window['ContentPlaceHolder1_txtPassword'] = dxo;
+dxo.uniqueID = 'ctl00$ContentPlaceHolder1$txtPassword';
+dxo.RequireStyleDecoration();
+dxo.styleDecoration.AddStyle('F','dxeFocused_Aqua','');
+dxo.styleDecoration.AddStyle('N','dxeNullText_Aqua','');
+dxo.InlineInitialize();
+
+//-->
+</script>
+        </td>
+    </tr>
+    <tr><td>&nbsp;</td></tr>
+    <tr>
+        <td>
+            <label class="dxeBase_Aqua" id="ContentPlaceHolder1_lblDatabase">Database:</label>
+        </td>
+    </tr>
+    <tr>
+        <td colspan="2">
+            <table class="dxeButtonEdit_Aqua" cellspacing="1" cellpadding="0" id="ContentPlaceHolder1_cboDatabase" style="width: 100%; border-radius: 0.25rem; border: 1px solid #a9c4e8; transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;">
+	<tbody><tr>
+		<td style="display:none;"><input id="ContentPlaceHolder1_cboDatabase_VI" name="ContentPlaceHolder1_cboDatabase_VI" type="hidden"></td><td class="dxic" onmousedown="return aspxDDDropDown('ContentPlaceHolder1_cboDatabase', event)" style="width:100%;padding-left:1px;padding-right:1px;padding-top:1px;padding-bottom:1px;"><input class="dxeEditArea_Aqua dxeEditAreaSys" name="ctl00$ContentPlaceHolder1$cboDatabase" id="ContentPlaceHolder1_cboDatabase_I" onchange="aspxETextChanged('ContentPlaceHolder1_cboDatabase')" onblur="aspxELostFocus('ContentPlaceHolder1_cboDatabase')" onfocus="aspxEGotFocus('ContentPlaceHolder1_cboDatabase')" type="text" onkeydown="aspxEKeyDown('ContentPlaceHolder1_cboDatabase', event)" readonly="readonly" style="height:15px;cursor:default;" autocomplete="off"></td><td id="ContentPlaceHolder1_cboDatabase_B-1" class="dxeButtonEditButton_Aqua" onmousedown="return aspxDDDropDown('ContentPlaceHolder1_cboDatabase', event)" style="-khtml-user-select:none;"><table class="dxbebt" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-collapse:separate;">
+			<tbody><tr>
+				<td class="dx"><img id="ContentPlaceHolder1_cboDatabase_B-1Img" class="dxEditors_edtDropDown_Aqua" src="/MMWeb/DXR.axd?r=1_5-l5zOn" alt="v"></td>
+			</tr>
+		</tbody></table></td>
+	</tr>
+</tbody></table><input type="hidden" id="ContentPlaceHolder1_cboDatabase_DDDWS" name="ContentPlaceHolder1_cboDatabase_DDDWS" value="0:0:-1:-10000:-10000:0:-10000:-10000:1"><div id="ContentPlaceHolder1_cboDatabase_DDD_PW-1" style="position:absolute;left:0px;top:0px;z-index:10000;visibility:hidden;display:none;">
+	<table id="ContentPlaceHolder1_cboDatabase_DDD_PWST-1" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border-collapse:separate;position:relative;">
+		<tbody><tr>
+			<td onmousedown="aspxPWMDown(event,'ContentPlaceHolder1_cboDatabase_DDD',-1,false)" style="width:200px;cursor:default;"><table id="ContentPlaceHolder1_cboDatabase_DDD_CLW-1" cellspacing="0" cellpadding="0" style="width:200px;border-collapse:collapse;border-collapse:separate;">
+				<tbody><tr>
+					<td id="ContentPlaceHolder1_cboDatabase_DDD_PWC-1" style="height:100%;"><div id="ContentPlaceHolder1_cboDatabase_DDD_CSD-1">
+						<table class="dxeListBox_Aqua" cellspacing="0" cellpadding="0" id="ContentPlaceHolder1_cboDatabase_DDD_L" style="border-collapse:collapse;border-collapse:separate;">
+							<tbody><tr>
+								<td valign="top"><div id="ContentPlaceHolder1_cboDatabase_DDD_L_D" class="dxlbd" style="width:100%;overflow-x:hidden;overflow-y:auto;">
+									<input id="ContentPlaceHolder1_cboDatabase_DDD_L_VI" type="hidden" name="ctl00$ContentPlaceHolder1$cboDatabase$DDD$L" value=""><table id="ContentPlaceHolder1_cboDatabase_DDD_L_LBT" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;border-collapse:separate;">
+										<tbody><tr class="dxeListBoxItemRow_Aqua">
+											<td class="dxeListBoxItem_Aqua" id="ContentPlaceHolder1_cboDatabase_DDD_L_LBI0T0">ARCHIVE</td>
+										</tr><tr class="dxeListBoxItemRow_Aqua">
+											<td class="dxeListBoxItem_Aqua" id="ContentPlaceHolder1_cboDatabase_DDD_L_LBI1T0">TEST</td>
+										</tr><tr class="dxeListBoxItemRow_Aqua">
+											<td class="dxeListBoxItem_Aqua" id="ContentPlaceHolder1_cboDatabase_DDD_L_LBI2T0">URMCCEX3</td>
+										</tr>
+									</tbody></table>
+								</div></td>
+							</tr>
+						</tbody></table><script id="dxss_1457619382" type="text/javascript">
+<!--
+aspxAddDisabledItems('ContentPlaceHolder1_cboDatabase_DDD_L',[[['dxeDisabled_Aqua'],[''],['']]]);
+
+var dxo = new ASPxClientListBox('ContentPlaceHolder1_cboDatabase_DDD_L');
+window['ContentPlaceHolder1_cboDatabase_DDD_L'] = dxo;
+dxo.uniqueID = 'ctl00$ContentPlaceHolder1$cboDatabase$DDD$L';
+dxo.SelectedIndexChanged.AddHandler(function (s, e) { aspxCBLBSelectedIndexChanged('ContentPlaceHolder1_cboDatabase', e); });
+dxo.ItemClick.AddHandler(function (s, e) { aspxCBLBItemMouseUp('ContentPlaceHolder1_cboDatabase', e); });
+dxo.RequireStyleDecoration();
+dxo.styleDecoration.AddStyle('F','dxeFocused_Aqua','');
+dxo.itemsValue=['3','2','1'];
+dxo.isComboBoxList = true;
+dxo.hoverClasses=['dxeListBoxItemHover_Aqua'];
+dxo.selectedClasses=['dxeListBoxItemSelected_Aqua'];
+dxo.disabledClasses=['dxeDisabled_Aqua'];
+dxo.InlineInitialize();
+
+//-->
+</script>
+					</div></td>
+				</tr>
+			</tbody></table></td>
+		</tr>
+	</tbody></table>
+</div><script id="dxss_887198698" type="text/javascript">
+<!--
+
+var dxo = new ASPxClientPopupControl('ContentPlaceHolder1_cboDatabase_DDD');
+window['ContentPlaceHolder1_cboDatabase_DDD'] = dxo;
+dxo.uniqueID = 'ctl00$ContentPlaceHolder1$cboDatabase$DDD';
+dxo.Shown.AddHandler(function (s, e) { aspxDDBPCShown('ContentPlaceHolder1_cboDatabase', e); });
+dxo.adjustInnerControlsSizeOnShow=false;
+dxo.closeAction='CloseButton';
+dxo.popupHorizontalAlign='LeftSides';
+dxo.popupVerticalAlign='Below';
+dxo.isPopupPositionCorrectionOn=false;
+dxo.shadowVisible=false;
+dxo.width=0;
+dxo.height=0;
+dxo.InlineInitialize();
+
+//-->
+</script><script id="dxss_407524855" type="text/javascript">
+<!--
+aspxAddHoverItems('ContentPlaceHolder1_cboDatabase',[[['dxeButtonEditButtonHover_Aqua'],[''],['B-1'],,[[{'spriteCssClass':'dxEditors_edtDropDownHover_Aqua'}]],['Img']]]);
+aspxAddPressedItems('ContentPlaceHolder1_cboDatabase',[[['dxeButtonEditButtonPressed_Aqua'],[''],['B-1'],,[[{'spriteCssClass':'dxEditors_edtDropDownPressed_Aqua'}]],['Img']]]);
+document.getElementById("ContentPlaceHolder1_cboDatabase_I").setAttribute("autocomplete", "off");
+
+var dxo = new ASPxClientComboBox('ContentPlaceHolder1_cboDatabase');
+window['ContentPlaceHolder1_cboDatabase'] = dxo;
+dxo.uniqueID = 'ctl00$ContentPlaceHolder1$cboDatabase';
+dxo.RequireStyleDecoration();
+dxo.styleDecoration.AddStyle('F','dxeFocused_Aqua','');
+dxo.lastSuccessValue = null;
+dxo.islastSuccessValueInit = true;
+dxo.InlineInitialize();
+
+//-->
+</script>
+        </td>
+    </tr>
+    <tr><td>&nbsp;</td></tr>
+    <tr>
+        <td colspan="2" align="center">
+                                                     
+        </td>
+    </tr>
+    <tr>
+        <td colspan="2" align="center">
+            <table cellspacing="0" cellpadding="0" id="ContentPlaceHolder1_btnLogin" style="border-collapse:collapse;border-radius:0.25rem;border:1px solid #a9c4e8;transition:border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;color:#fff;background-color:#17a2b8;border-color:#17a2b8;-webkit-appearance:button;-khtml-user-select:none;">
+	<tbody><tr>
+		<td id="ContentPlaceHolder1_btnLogin_B" class="dxbButton_Aqua" align="center"><div style="border-width:0;width:0;height:0;opacity:0;padding:0;margin:0;overflow:hidden;">
+			<input value="" onfocus="aspxBGotFocus('ContentPlaceHolder1_btnLogin')" name="ctl00$ContentPlaceHolder1$btnLogin" type="submit" readonly="readonly" style="border-width:0px;height:0px;width:0px;padding:0;border-width:0;width:1px;height:1px;opacity:0;margin:0;position:relative;">
+		</div><div id="ContentPlaceHolder1_btnLogin_CD" class="dxb">
+			<span style="">Login</span>
+		</div></td>
+	</tr>
+</tbody></table><script id="dxss_1897225257" type="text/javascript">
+<!--
+aspxAddHoverItems('ContentPlaceHolder1_btnLogin',[[['dxbButtonHover_Aqua'],[''],['B'],['','TC'],[['']],['Img']]]);
+aspxAddPressedItems('ContentPlaceHolder1_btnLogin',[[['dxbButtonPressed_Aqua'],[''],['B'],['','TC'],[['']],['Img']]]);
+aspxAddDisabledItems('ContentPlaceHolder1_btnLogin',[[['dxbDisabled_Aqua'],[''],['B'],['','TC'],[['']],['Img']]]);
+
+var dxo = new ASPxClientButton('ContentPlaceHolder1_btnLogin');
+window['ContentPlaceHolder1_btnLogin'] = dxo;
+dxo.autoPostBack = true;
+dxo.uniqueID = 'ctl00$ContentPlaceHolder1$btnLogin';
+dxo.Click.AddHandler(btnLogin_ClientClick);
+dxo.RegisterServerEventAssigned(['Click']);
+aspxAddSelectedItems('ContentPlaceHolder1_btnLogin',[[['dxbf'],[''],['CD']]]);
+dxo.InlineInitialize();
+
+//-->
+</script>
+        </td>
+    </tr>
+    <tr><td>&nbsp;</td></tr>
+    <tr>
+        <td colspan="2" align="center">
+            <label class="dxeBase_Aqua" id="ContentPlaceHolder1_lblLoginError" style="color:Red;display:none;">Invalid Employee Code / Password</label><script id="dxss_589316770" type="text/javascript">
+<!--
+aspxAddDisabledItems('ContentPlaceHolder1_lblLoginError',[[['dxeDisabled_Aqua'],[''],['']]]);
+
+var dxo = new ASPxClientLabel('ContentPlaceHolder1_lblLoginError');
+window['lblLoginError'] = dxo;
+dxo.uniqueID = 'ctl00$ContentPlaceHolder1$lblLoginError';
+dxo.clientVisible = false;dxo.InlineInitialize();
+
+//-->
+</script>
+        </td>
+    </tr>
+    </tbody></table>
+    </td>
+</tr>
+</tbody></table>
+
+                <br>
+            </div>
+        </div>
+        <div class="footer" style="z-index: 1030; background-color: #212529; color: #FFFFFF; padding: 0.75rem 1.25rem;">
+            <table width="100%">
+                <tbody><tr>
+                    <td style="width: 50%; text-align: left;">
+                        <label class="dxeBase_Aqua" id="lblProductVersion">Mobile Work Order version 6.1.18 (3/5/2025), a MobileTech product ™ MediMizer, Inc.</label>
+                    </td>
+                    <td style="width: 50%; text-align: right;">
+                        <label class="dxeBase_Aqua" id="lblDatabaseName"></label>
+                    </td>
+                </tr>
+            </tbody></table>
+        </div>
+	</div>
+    <input type="hidden" name="DXScript" value="1_42,1_75,2_34,2_41,2_33,1_68,1_65,2_36,2_27,2_40"></form>
+
+
+</body></html>
