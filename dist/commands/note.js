@@ -10,7 +10,7 @@ exports.validateServices = validateServices;
 const database_1 = require("../database");
 const filesystem_1 = require("../utils/filesystem");
 const editor_1 = require("../utils/editor");
-const browser_1 = require("../utils/browser");
+const browser_enhanced_1 = require("../utils/browser-enhanced");
 const chalk_1 = __importDefault(require("chalk"));
 /**
  * Open notes for a work order
@@ -77,7 +77,7 @@ async function importNotes(workOrderNumber) {
         // Create the notes file if it doesn't exist
         await (0, filesystem_1.createNotesFile)(workOrderNumber);
         // Get browser automation instance
-        const browser = browser_1.BrowserAutomation.getInstance();
+        const browser = browser_enhanced_1.BrowserAutomation.getInstance();
         // Import notes from Medimizer
         console.log(chalk_1.default.yellow(`Importing notes for work order ${workOrderNumber}...`));
         const notesFromMM = await browser.importNotes(workOrderNumber);

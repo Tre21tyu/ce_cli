@@ -2,6 +2,8 @@ import Database from 'better-sqlite3';
 import knex, { Knex } from 'knex';
 import path from 'path';
 import fs from 'fs';
+import inquirer from 'inquirer';
+import chalk from 'chalk';
 import { 
   WorkOrder, 
   Service, 
@@ -17,6 +19,7 @@ import {
 export class WorkDatabase {
   public db: Knex;
   private static instance: WorkDatabase;
+  private initialized: boolean = false;
 
   /**
    * Private constructor to enforce singleton pattern
@@ -28,17 +31,17 @@ export class WorkDatabase {
       fs.mkdirSync(dataDir, { recursive: true });
     }
 
+    // Set up the database file path
+    const dbPath = path.join(dataDir, 'work-cli.sqlite');
+    
     // Initialize SQLite database with Knex
     this.db = knex({
       client: 'better-sqlite3',
       connection: {
-        filename: path.join(dataDir, 'work-cli.sqlite')
+        filename: dbPath
       },
       useNullAsDefault: true
     });
-
-    // Initialize database schema
-    this.initDatabase();
   }
 
   /**
@@ -52,9 +55,60 @@ export class WorkDatabase {
   }
 
   /**
-   * Initialize database tables if they don't exist
+   * Check if the database has been initialized
    */
-  private async initDatabase(): Promise<void> {
+  public async checkInitialized(): Promise<boolean> {
+    if (this.initialized) return true;
+    
+    try {
+      // Check if WOs table exists
+      const hasWOs = await this.db.schema.hasTable('WOs');
+      this.initialized = hasWOs;
+      return hasWOs;
+    } catch (error) {
+      console.error('Error checking database initialization:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Ensure the database is initialized before performing operations
+   * Prompts the user to initialize if not already
+   */
+  public async ensureInitialized(): Promise<boolean> {
+    const isInitialized = await this.checkInitialized();
+    
+    if (!isInitialized) {
+      console.log(chalk.yellow('Database not initialized or tables are missing.'));
+      
+      const { initDb } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'initDb',
+          message: 'Would you like to initialize the database?',
+          default: true
+        }
+      ]);
+      
+      if (initDb) {
+        console.log(chalk.yellow('Initializing database...'));
+        await this.initDatabase();
+        this.initialized = true;
+        console.log(chalk.green('Database initialized successfully.'));
+        return true;
+      } else {
+        console.log(chalk.red('Database initialization canceled.'));
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  /**
+   * Initialize database tables
+   */
+  public async initDatabase(): Promise<void> {
     try {
       // Create WOs table if it doesn't exist
       if (!(await this.db.schema.hasTable('WOs'))) {
@@ -145,6 +199,8 @@ export class WorkDatabase {
         });
         console.log('Created PartsCharged table');
       }
+      
+      this.initialized = true;
     } catch (error) {
       console.error('Error initializing database:', error);
       throw error;
@@ -160,6 +216,12 @@ export class WorkDatabase {
    */
   public async addWorkOrder(workOrderNumber: string, controlNumber?: string): Promise<WorkOrder> {
     try {
+      // Ensure database is initialized
+      const dbReady = await this.ensureInitialized();
+      if (!dbReady) {
+        throw new Error('Database not initialized. Please initialize the database before adding work orders.');
+      }
+      
       // Validate work order number (7 digits)
       if (!/^\d{7}$/.test(workOrderNumber)) {
         throw new Error('Work order number must be exactly 7 digits');
@@ -200,7 +262,6 @@ export class WorkDatabase {
       throw error;
     }
   }
-
   /**
    * Get a work order by its number
    * 

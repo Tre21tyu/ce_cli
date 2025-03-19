@@ -7,7 +7,7 @@ exports.WorkCliRepl = void 0;
 const inquirer_1 = __importDefault(require("inquirer"));
 const chalk_1 = __importDefault(require("chalk"));
 const banner_1 = require("./utils/banner");
-const init_1 = require("./commands/init");
+const init_enhanced_1 = require("./commands/init-enhanced");
 const list_1 = require("./commands/list");
 const details_1 = require("./commands/details");
 const service_1 = require("./commands/service");
@@ -25,7 +25,7 @@ class WorkCliRepl {
      */
     constructor(bannerText) {
         this.isRunning = false;
-        this.bannerText = 'Work CLI';
+        this.bannerText = 'ce_cli';
         if (bannerText) {
             this.bannerText = bannerText;
         }
@@ -56,7 +56,7 @@ class WorkCliRepl {
                     {
                         type: 'input',
                         name: 'command',
-                        message: chalk_1.default.cyan('work-cli> '),
+                        message: chalk_1.default.cyan('ce-cli> '),
                         prefix: ''
                     }
                 ]);
@@ -92,7 +92,7 @@ class WorkCliRepl {
                     try {
                         const workOrderNumber = args[0];
                         const controlNumber = args.length > 1 ? args[1] : undefined;
-                        const result = await (0, init_1.initWorkOrder)(workOrderNumber, controlNumber);
+                        const result = await (0, init_enhanced_1.initWorkOrder)(workOrderNumber, controlNumber);
                         console.log(chalk_1.default.green(result));
                     }
                     catch (error) {

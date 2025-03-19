@@ -1,7 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { displayBanner } from './utils/banner';
-import { initWorkOrder } from './commands/init';
+import { initWorkOrder } from './commands/init-enhanced';
 import { listWorkOrders } from './commands/list';
 import { getWorkOrderDetails } from './commands/details';
 import { addService, addPartToService } from './commands/service';
@@ -14,7 +14,7 @@ import { stackWorkOrder, displayStack, clearStack } from './commands/stack';
  */
 export class WorkCliRepl {
   private isRunning: boolean = false;
-  private bannerText: string = 'Work CLI';
+  private bannerText: string = 'ce_cli';
 
   /**
    * Constructor for the REPL
@@ -57,7 +57,7 @@ export class WorkCliRepl {
           {
             type: 'input',
             name: 'command',
-            message: chalk.cyan('work-cli> '),
+            message: chalk.cyan('ce-cli> '),
             prefix: ''
           }
         ]);

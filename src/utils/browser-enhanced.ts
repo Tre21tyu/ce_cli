@@ -1,6 +1,7 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import chalk from 'chalk';
 import path from 'path';
+import fs from 'fs';
 
 /**
  * Class to handle browser automation for interacting with Medimizer
@@ -9,11 +10,18 @@ export class BrowserAutomation {
   public browser: Browser | null = null;
   public page: Page | null = null;
   private static instance: BrowserAutomation;
+  private logsDir: string;
 
   /**
    * Private constructor to enforce singleton pattern
    */
-  private constructor() {}
+  private constructor() {
+    // Create logs directory for screenshots
+    this.logsDir = path.join(process.cwd(), 'logs');
+    if (!fs.existsSync(this.logsDir)) {
+      fs.mkdirSync(this.logsDir, { recursive: true });
+    }
+  }
 
   /**
    * Get the singleton instance
@@ -26,6 +34,31 @@ export class BrowserAutomation {
   }
 
   /**
+   * Create a timestamped filename for screenshots
+   */
+  private getScreenshotPath(prefix: string): string {
+    const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
+    return path.join(this.logsDir, `${prefix}_${timestamp}.png`);
+  }
+
+  /**
+   * Take a screenshot for debugging
+   */
+  private async takeScreenshot(prefix: string): Promise<string | null> {
+    if (!this.page) return null;
+    
+    try {
+      const filePath = this.getScreenshotPath(prefix);
+      await this.page.screenshot({ path: filePath, fullPage: true });
+      console.log(chalk.yellow(`Screenshot saved to ${filePath}`));
+      return filePath;
+    } catch (error) {
+      console.error(`Failed to take screenshot: ${error}`);
+      return null;
+    }
+  }
+
+  /**
    * Initialize the browser
    */
   public async initialize(): Promise<void> {
@@ -34,7 +67,14 @@ export class BrowserAutomation {
       this.browser = await puppeteer.launch({
         headless: false, // Set to true for production
         defaultViewport: null, // Use default viewport size
-        args: ['--start-maximized'] // Start with maximized window
+        args: [
+          '--start-maximized',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu'
+        ]
       });
       
       // Create a new page
@@ -42,6 +82,14 @@ export class BrowserAutomation {
       
       // Set a longer timeout
       await this.page.setDefaultTimeout(30000);
+      
+      // Set up console logging to help with debugging
+      this.page.on('console', msg => {
+        console.log(chalk.gray(`[Browser Console] ${msg.text()}`));
+      });
+      
+      // Set viewport
+      await this.page.setViewport({ width: 1280, height: 800 });
       
       console.log(chalk.green('Browser started'));
     }
@@ -81,17 +129,29 @@ export class BrowserAutomation {
       
       // Add retry logic for navigation
       let retries = 3;
-      while (retries > 0) {
+      let success = false;
+      
+      while (retries > 0 && !success) {
         try {
           await this.page.goto(url, { 
             waitUntil: 'networkidle2',
             timeout: 30000 // 30 second timeout
           });
-          console.log(chalk.green('Navigation complete'));
-          break;
+          
+          // Check if page loaded correctly
+          const pageContent = await this.page.content();
+          if (pageContent.includes('MediMizer') || pageContent.includes('Login')) {
+            success = true;
+            console.log(chalk.green('Navigation complete'));
+          } else {
+            throw new Error('Page did not load correctly');
+          }
         } catch (error) {
           retries--;
+          await this.takeScreenshot('navigation_error');
+          
           if (retries === 0) throw error;
+          
           console.log(chalk.yellow(`Navigation failed, retrying (${retries} attempts left)...`));
           await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds before retry
         }
@@ -100,6 +160,7 @@ export class BrowserAutomation {
       // Check if we need to log in
       const isLoginPage = await this.isLoginPage();
       if (isLoginPage) {
+        console.log(chalk.yellow('Login page detected'));
         await this.login('LPOLLOCK', 'password', 'URMCCEX3');
         
         // Navigate back to the original URL after login
@@ -107,6 +168,8 @@ export class BrowserAutomation {
       }
 
     } catch (error) {
+      await this.takeScreenshot('navigation_failed');
+      
       if (error instanceof Error) {
         throw new Error(`Failed to navigate to work order: ${error.message}`);
       } else {
@@ -123,13 +186,22 @@ export class BrowserAutomation {
   private async isLoginPage(): Promise<boolean> {
     if (!this.page) return false;
     
-    return await this.page.evaluate(() => {
-      return !!document.querySelector('#ContentPlaceHolder1_txtEmployeeCode_I');
-    });
+    try {
+      return await this.page.evaluate(() => {
+        const employeeCodeField = document.querySelector('#ContentPlaceHolder1_txtEmployeeCode_I');
+        const passwordField = document.querySelector('#ContentPlaceHolder1_txtPassword_I');
+        const loginButton = document.querySelector('#ContentPlaceHolder1_btnLogin_CD');
+        
+        return !!(employeeCodeField && passwordField && loginButton);
+      });
+    } catch (error) {
+      console.error('Error checking if on login page:', error);
+      return false;
+    }
   }
   
   /**
-   * Log in to Medimizer
+   * Log in to Medimizer using a more reliable approach
    * 
    * @param employeeCode - Employee code
    * @param password - Password
@@ -141,54 +213,144 @@ export class BrowserAutomation {
         throw new Error('Browser page not initialized');
       }
       
-      console.log(chalk.yellow(`Logging in as ${employeeCode}...`));
+      console.log(chalk.yellow(`Logging in as ${employeeCode} to database ${database}...`));
       
-      // Fill in employee code
+      // Take a screenshot of the login page
+      await this.takeScreenshot('login_before');
+      
+      // Fill in employee code using page.evaluate for more direct control
       await this.page.evaluate((code) => {
         const input = document.querySelector('#ContentPlaceHolder1_txtEmployeeCode_I') as HTMLInputElement;
         if (input) {
-          // Clear any existing text (needed for fields with default text)
+          // Clear any existing value
           input.value = '';
-          // Set the new value
+          input.focus();
           input.value = code;
+          
+          // Create and dispatch input event
+          const event = new Event('input', { bubbles: true });
+          input.dispatchEvent(event);
+          
+          // Create and dispatch change event
+          const changeEvent = new Event('change', { bubbles: true });
+          input.dispatchEvent(changeEvent);
+        } else {
+          throw new Error('Employee code field not found');
         }
       }, employeeCode);
       
-      // Fill in password
-      await this.page.type('#ContentPlaceHolder1_txtPassword_I', password, { delay: 50 });
+      // Wait a bit for any dynamic changes
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Select the database
-      await this.page.click('#ContentPlaceHolder1_cboDatabase_B-1');
-      await this.page.waitForSelector('#ContentPlaceHolder1_cboDatabase_DDD_L_LBI2T0', { visible: true });
+      // Fill in password using page.evaluate
+      await this.page.evaluate((pwd) => {
+        const input = document.querySelector('#ContentPlaceHolder1_txtPassword_I') as HTMLInputElement;
+        if (input) {
+          input.value = '';
+          input.focus();
+          input.value = pwd;
+          
+          // Create and dispatch events
+          const event = new Event('input', { bubbles: true });
+          input.dispatchEvent(event);
+          
+          const changeEvent = new Event('change', { bubbles: true });
+          input.dispatchEvent(changeEvent);
+        } else {
+          throw new Error('Password field not found');
+        }
+      }, password);
       
-      // Map database name to selector index
-      let dbSelector;
+      // Wait a bit for any dynamic changes
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Click the dropdown using page.evaluate
+      await this.page.evaluate(() => {
+        const dropdown = document.querySelector('#ContentPlaceHolder1_cboDatabase_B-1');
+        if (dropdown) {
+          dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        } else {
+          throw new Error('Database dropdown button not found');
+        }
+      });
+      
+      // Wait for dropdown to appear
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Take a screenshot to verify dropdown is open
+      await this.takeScreenshot('login_dropdown');
+      
+      // Select database option based on string
+      let dbOptionId;
       if (database === 'ARCHIVE') {
-        dbSelector = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI0T0';
+        dbOptionId = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI0T0';
       } else if (database === 'TEST') {
-        dbSelector = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI1T0';
+        dbOptionId = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI1T0';
       } else if (database === 'URMCCEX3') {
-        dbSelector = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI2T0';
+        dbOptionId = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI2T0';
       } else {
         throw new Error(`Unknown database: ${database}`);
       }
       
-      await this.page.click(dbSelector);
+      // Select the database option
+      await this.page.evaluate((optionId) => {
+        const option = document.querySelector(optionId);
+        if (option) {
+          option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        } else {
+          throw new Error(`Database option ${optionId} not found`);
+        }
+      }, dbOptionId);
       
-      // Click login button
-      await this.page.click('#ContentPlaceHolder1_btnLogin_CD');
+      // Wait for selection to be registered
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Wait for navigation to complete
-      await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+      // Take a screenshot after database selection
+      await this.takeScreenshot('login_db_selected');
+      
+      // Click login button using JavaScript click
+      await this.page.evaluate(() => {
+        const loginButton = document.querySelector('#ContentPlaceHolder1_btnLogin_CD');
+        if (loginButton) {
+          loginButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        } else {
+          throw new Error('Login button not found');
+        }
+      });
+      
+      // Wait for navigation to complete (either redirect or error message)
+      await this.page.waitForNavigation({ timeout: 30000, waitUntil: 'networkidle2' })
+        .catch(async () => {
+          // If navigation fails, check if error message is displayed
+          const errorVisible = this.page && await this.page.evaluate(() => {
+            const errorMsg = document.querySelector('#ContentPlaceHolder1_lblLoginError') as HTMLElement;
+            return errorMsg && window.getComputedStyle(errorMsg).display !== 'none';
+          });
+          
+          if (errorVisible) {
+            const errorText = await this.page?.evaluate(() => {
+              const errorMsg = document.querySelector('#ContentPlaceHolder1_lblLoginError') as HTMLElement;
+              return errorMsg ? errorMsg.textContent : 'Unknown error';
+            });
+            
+            await this.takeScreenshot('login_error');
+            throw new Error(`Login failed: ${errorText}`);
+          }
+        });
+      
+      // Take a screenshot after login attempt
+      await this.takeScreenshot('login_after');
+      
+      // Verify we're not still on the login page
+      const stillOnLoginPage = await this.isLoginPage();
+      if (stillOnLoginPage) {
+        throw new Error('Login failed: Still on login page after login attempt');
+      }
       
       console.log(chalk.green('Login successful'));
     } catch (error) {
-      // Take screenshot on failure
-      if (this.page) {
-        const screenshotPath = path.join(process.cwd(), 'login_error.png');
-        await this.page.screenshot({ path: screenshotPath });
-        console.log(chalk.yellow(`Login screenshot saved to ${screenshotPath}`));
-      }
+      // Take screenshot on failure if not already taken
+      await this.takeScreenshot('login_failed');
       
       if (error instanceof Error) {
         throw new Error(`Login failed: ${error.message}`);
@@ -211,20 +373,38 @@ export class BrowserAutomation {
 
       console.log(chalk.yellow('Extracting notes...'));
       
-      // Try both possible selectors for the notes textarea
-      const selector = '#ContentPlaceHolder1_pagWorkOrder_memNotes_I, textarea.dxeMemoEditArea_Aqua';
+      // Take a screenshot before extraction
+      await this.takeScreenshot('extract_notes_before');
       
-      // Wait for the textarea to be present
-      try {
-        await this.page.waitForSelector(selector, { 
-          timeout: 15000,
-          visible: true 
-        });
-      } catch (timeoutError) {
-        // Take a screenshot to help diagnose the issue
-        const screenshotPath = path.join(process.cwd(), 'notes_error.png');
-        await this.page.screenshot({ path: screenshotPath });
-        throw new Error(`Notes textarea not found. Screenshot saved to ${screenshotPath}`);
+      // Try multiple possible selectors for the notes textarea
+      const selectors = [
+        '#ContentPlaceHolder1_pagWorkOrder_memNotes_I',
+        'textarea.dxeMemoEditArea_Aqua',
+        'textarea[name="ctl00$ContentPlaceHolder1$pagWorkOrder$memNotes"]'
+      ];
+      
+      // Wait for at least one of the selectors to be present
+      let selectorFound = false;
+      let usedSelector = '';
+      
+      for (const selector of selectors) {
+        try {
+          await this.page.waitForSelector(selector, { 
+            timeout: 5000,
+            visible: true 
+          });
+          selectorFound = true;
+          usedSelector = selector;
+          console.log(chalk.green(`Found notes element with selector: ${selector}`));
+          break;
+        } catch (error) {
+          console.log(chalk.yellow(`Selector ${selector} not found, trying next...`));
+        }
+      }
+      
+      if (!selectorFound) {
+        await this.takeScreenshot('notes_element_not_found');
+        throw new Error('Notes textarea not found on page');
       }
       
       // Extract the notes text with retry logic
@@ -232,10 +412,10 @@ export class BrowserAutomation {
       let attempts = 3;
       
       while (attempts > 0) {
-        notes = await this.page.evaluate((sel) => {
-          const textarea = document.querySelector(sel) as HTMLTextAreaElement;
+        notes = await this.page.evaluate((selector) => {
+          const textarea = document.querySelector(selector) as HTMLTextAreaElement;
           return textarea ? textarea.value : '';
-        }, selector);
+        }, usedSelector);
         
         if (notes !== '') {
           break;
@@ -249,10 +429,15 @@ export class BrowserAutomation {
         }
       }
 
-      console.log(chalk.green('Notes extracted'));
+      // Take a screenshot after extraction
+      await this.takeScreenshot('extract_notes_after');
+
+      console.log(chalk.green('Notes extracted successfully'));
       return notes;
 
     } catch (error) {
+      await this.takeScreenshot('extract_notes_failed');
+      
       if (error instanceof Error) {
         throw new Error(`Failed to extract notes: ${error.message}`);
       } else {
@@ -271,6 +456,9 @@ export class BrowserAutomation {
     try {
       // Navigate to the work order page (using tab 2 for notes)
       await this.navigateToWorkOrder(workOrderNumber, 2);
+      
+      // Wait a bit for the page to fully load
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Extract notes
       const notes = await this.extractNotes();

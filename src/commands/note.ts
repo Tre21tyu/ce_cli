@@ -1,7 +1,7 @@
 import { WorkDatabase } from '../database';
 import { createNotesFile, readNotesFile, writeNotesFile } from '../utils/filesystem';
 import { openNotesInEditor } from '../utils/editor';
-import { BrowserAutomation } from '../utils/browser';
+import { BrowserAutomation } from '../utils/browser-enhanced';
 import chalk from 'chalk';
 
 /**

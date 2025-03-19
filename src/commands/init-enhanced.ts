@@ -2,7 +2,7 @@ import { WorkDatabase } from '../database';
 import { createWorkOrderDirectory, createNotesFile } from '../utils/filesystem';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { BrowserAutomation } from '../utils/browser';
+import { BrowserAutomation } from '../utils/browser-enhanced';
 import { writeNotesFile } from '../utils/filesystem';
 
 /**
@@ -25,6 +25,12 @@ export async function initWorkOrder(workOrderNumber: string, controlNumber?: str
 
     // Get database instance
     const db = WorkDatabase.getInstance();
+    
+    // Ensure database is initialized
+    const dbReady = await db.ensureInitialized();
+    if (!dbReady) {
+      return 'Operation canceled: Database is not initialized.';
+    }
 
     // Add work order to database
     const workOrder = await db.addWorkOrder(workOrderNumber, controlNumber);
@@ -103,24 +109,11 @@ async function importNotesFromMedimizer(workOrderNumber: string): Promise<string
     if (isLoginPage) {
       console.log(chalk.yellow('Login page detected. Attempting to log in...'));
       
-      // Fill in employee code
-      await browser.page.type('#ContentPlaceHolder1_txtEmployeeCode_I', 'LPOLLOCK', { delay: 100 });
+      // Use the improved login method
+      await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
       
-      // Fill in password
-      await browser.page.type('#ContentPlaceHolder1_txtPassword_I', 'password', { delay: 100 });
-      
-      // Select the database (URMCCEX3)
-      await browser.page.click('#ContentPlaceHolder1_cboDatabase_B-1');
-      await browser.page.waitForSelector('#ContentPlaceHolder1_cboDatabase_DDD_L_LBI2T0');
-      await browser.page.click('#ContentPlaceHolder1_cboDatabase_DDD_L_LBI2T0');
-      
-      // Click login button
-      await browser.page.click('#ContentPlaceHolder1_btnLogin_CD');
-      
-      // Wait for navigation to complete
-      await browser.page.waitForNavigation({ waitUntil: 'networkidle2' });
-      
-      console.log(chalk.green('Login successful'));
+      // After login, navigate to the original URL
+      await browser.page.goto(url, { waitUntil: 'networkidle2' });
     }
     
     // Wait for the notes textarea to appear

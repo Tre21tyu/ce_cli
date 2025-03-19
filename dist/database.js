@@ -7,6 +7,8 @@ exports.WorkDatabase = void 0;
 const knex_1 = __importDefault(require("knex"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
+const inquirer_1 = __importDefault(require("inquirer"));
+const chalk_1 = __importDefault(require("chalk"));
 /**
  * Database class for handling all database operations
  */
@@ -15,21 +17,22 @@ class WorkDatabase {
      * Private constructor to enforce singleton pattern
      */
     constructor() {
+        this.initialized = false;
         // Ensure the data directory exists
         const dataDir = path_1.default.join(process.cwd(), 'data');
         if (!fs_1.default.existsSync(dataDir)) {
             fs_1.default.mkdirSync(dataDir, { recursive: true });
         }
+        // Set up the database file path
+        const dbPath = path_1.default.join(dataDir, 'work-cli.sqlite');
         // Initialize SQLite database with Knex
         this.db = (0, knex_1.default)({
             client: 'better-sqlite3',
             connection: {
-                filename: path_1.default.join(dataDir, 'work-cli.sqlite')
+                filename: dbPath
             },
             useNullAsDefault: true
         });
-        // Initialize database schema
-        this.initDatabase();
     }
     /**
      * Get the singleton instance of the database
@@ -41,7 +44,54 @@ class WorkDatabase {
         return WorkDatabase.instance;
     }
     /**
-     * Initialize database tables if they don't exist
+     * Check if the database has been initialized
+     */
+    async checkInitialized() {
+        if (this.initialized)
+            return true;
+        try {
+            // Check if WOs table exists
+            const hasWOs = await this.db.schema.hasTable('WOs');
+            this.initialized = hasWOs;
+            return hasWOs;
+        }
+        catch (error) {
+            console.error('Error checking database initialization:', error);
+            return false;
+        }
+    }
+    /**
+     * Ensure the database is initialized before performing operations
+     * Prompts the user to initialize if not already
+     */
+    async ensureInitialized() {
+        const isInitialized = await this.checkInitialized();
+        if (!isInitialized) {
+            console.log(chalk_1.default.yellow('Database not initialized or tables are missing.'));
+            const { initDb } = await inquirer_1.default.prompt([
+                {
+                    type: 'confirm',
+                    name: 'initDb',
+                    message: 'Would you like to initialize the database?',
+                    default: true
+                }
+            ]);
+            if (initDb) {
+                console.log(chalk_1.default.yellow('Initializing database...'));
+                await this.initDatabase();
+                this.initialized = true;
+                console.log(chalk_1.default.green('Database initialized successfully.'));
+                return true;
+            }
+            else {
+                console.log(chalk_1.default.red('Database initialization canceled.'));
+                return false;
+            }
+        }
+        return true;
+    }
+    /**
+     * Initialize database tables
      */
     async initDatabase() {
         try {
@@ -129,6 +179,7 @@ class WorkDatabase {
                 });
                 console.log('Created PartsCharged table');
             }
+            this.initialized = true;
         }
         catch (error) {
             console.error('Error initializing database:', error);
@@ -144,6 +195,11 @@ class WorkDatabase {
      */
     async addWorkOrder(workOrderNumber, controlNumber) {
         try {
+            // Ensure database is initialized
+            const dbReady = await this.ensureInitialized();
+            if (!dbReady) {
+                throw new Error('Database not initialized. Please initialize the database before adding work orders.');
+            }
             // Validate work order number (7 digits)
             if (!/^\d{7}$/.test(workOrderNumber)) {
                 throw new Error('Work order number must be exactly 7 digits');
