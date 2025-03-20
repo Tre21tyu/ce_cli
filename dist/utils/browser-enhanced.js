@@ -809,6 +809,13 @@ class BrowserAutomation {
      * @param serviceString - Raw service string from Medimizer
      * @returns Formatted service string in markdown format
      */
+    /**
+     * Format a service string from Medimizer format to markdown format
+     * Ensures exactly one comma between Verb and Noun
+     *
+     * @param serviceString - Raw service string from Medimizer
+     * @returns Formatted service string in markdown format
+     */
     formatServiceString(serviceString) {
         try {
             // Print the raw string for debugging
@@ -891,11 +898,18 @@ class BrowserAutomation {
             }
             // Check if description has verb and noun or just verb
             let formattedDescription;
-            if (description.includes(',')) {
-                const [verb, noun] = description.split(',').map(part => part.trim());
+            // Check if the description contains multiple commas
+            const parts = description.split(/\s*,\s*/);
+            if (parts.length > 1) {
+                // We have multiple parts - use the first as Verb and the rest as Noun
+                const verb = parts[0].trim();
+                // Join remaining parts with spaces instead of commas
+                const noun = parts.slice(1).join(' ').trim();
+                // Format with exactly one comma
                 formattedDescription = `[${verb}, ${noun}]`;
             }
             else {
+                // Just a Verb, no Noun
                 formattedDescription = `[${description}]`;
             }
             // Combine everything into the final format
