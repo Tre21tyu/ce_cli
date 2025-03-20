@@ -185,7 +185,7 @@ class BrowserAutomation {
         }
     }
     /**
-     * Log in to Medimizer using a more reliable approach
+     * Ultra-reliable login function with multiple fallback approaches
      *
      * @param employeeCode - Employee code
      * @param password - Password
@@ -198,124 +198,398 @@ class BrowserAutomation {
             }
             console.log(chalk_1.default.yellow(`Logging in as ${employeeCode} to database ${database}...`));
             // Take a screenshot of the login page
-            await this.takeScreenshot('login_before');
-            // Fill in employee code using page.evaluate for more direct control
-            await this.page.evaluate((code) => {
-                const input = document.querySelector('#ContentPlaceHolder1_txtEmployeeCode_I');
-                if (input) {
-                    // Clear any existing value
-                    input.value = '';
-                    input.focus();
+            await this.takeScreenshot('login_start');
+            // ========== 1. Fill employee code ==========
+            console.log(chalk_1.default.yellow('Setting employee code...'));
+            // Method 1: Direct typing
+            try {
+                await this.page.waitForSelector('#ContentPlaceHolder1_txtEmployeeCode_I', { visible: true, timeout: 5000 });
+                await this.page.click('#ContentPlaceHolder1_txtEmployeeCode_I', { clickCount: 3 }); // Select all existing text
+                await this.page.type('#ContentPlaceHolder1_txtEmployeeCode_I', employeeCode, { delay: 50 });
+            }
+            catch (error) {
+                console.log(chalk_1.default.yellow('Method 1 for employee code failed, trying method 2...'));
+                // Method 2: DOM manipulation
+                await this.page.evaluate((code) => {
+                    const input = document.querySelector('#ContentPlaceHolder1_txtEmployeeCode_I');
+                    if (!input)
+                        throw new Error('Employee code field not found');
                     input.value = code;
-                    // Create and dispatch input event
-                    const event = new Event('input', { bubbles: true });
-                    input.dispatchEvent(event);
-                    // Create and dispatch change event
-                    const changeEvent = new Event('change', { bubbles: true });
-                    input.dispatchEvent(changeEvent);
-                }
-                else {
-                    throw new Error('Employee code field not found');
-                }
-            }, employeeCode);
-            // Wait a bit for any dynamic changes
-            await new Promise(resolve => setTimeout(resolve, 500));
-            // Fill in password using page.evaluate
-            await this.page.evaluate((pwd) => {
-                const input = document.querySelector('#ContentPlaceHolder1_txtPassword_I');
-                if (input) {
-                    input.value = '';
-                    input.focus();
-                    input.value = pwd;
-                    // Create and dispatch events
-                    const event = new Event('input', { bubbles: true });
-                    input.dispatchEvent(event);
-                    const changeEvent = new Event('change', { bubbles: true });
-                    input.dispatchEvent(changeEvent);
-                }
-                else {
-                    throw new Error('Password field not found');
-                }
-            }, password);
-            // Wait a bit for any dynamic changes
-            await new Promise(resolve => setTimeout(resolve, 500));
-            // Click the dropdown using page.evaluate
-            await this.page.evaluate(() => {
-                const dropdown = document.querySelector('#ContentPlaceHolder1_cboDatabase_B-1');
-                if (dropdown) {
-                    dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-                }
-                else {
-                    throw new Error('Database dropdown button not found');
-                }
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }, employeeCode);
+            }
+            // Verify employee code was set
+            const actualEmployeeCode = await this.page.evaluate(() => {
+                const input = document.querySelector('#ContentPlaceHolder1_txtEmployeeCode_I');
+                return input ? input.value : '';
             });
-            // Wait for dropdown to appear
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            // Take a screenshot to verify dropdown is open
-            await this.takeScreenshot('login_dropdown');
-            // Select database option based on string
-            let dbOptionId;
+            if (actualEmployeeCode !== employeeCode) {
+                console.log(chalk_1.default.yellow(`Employee code verification failed. Expected: ${employeeCode}, Got: ${actualEmployeeCode}`));
+                await this.page.evaluate((code) => {
+                    const input = document.querySelector('#ContentPlaceHolder1_txtEmployeeCode_I');
+                    if (input) {
+                        input.value = code;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }, employeeCode);
+            }
+            // ========== 2. Fill password ==========
+            console.log(chalk_1.default.yellow('Setting password...'));
+            // Method 1: Direct typing
+            try {
+                await this.page.waitForSelector('#ContentPlaceHolder1_txtPassword_I', { visible: true, timeout: 5000 });
+                await this.page.click('#ContentPlaceHolder1_txtPassword_I', { clickCount: 3 }); // Select all existing text
+                await this.page.type('#ContentPlaceHolder1_txtPassword_I', password, { delay: 50 });
+            }
+            catch (error) {
+                console.log(chalk_1.default.yellow('Method 1 for password failed, trying method 2...'));
+                // Method 2: DOM manipulation
+                await this.page.evaluate((pwd) => {
+                    const input = document.querySelector('#ContentPlaceHolder1_txtPassword_I');
+                    if (!input)
+                        throw new Error('Password field not found');
+                    input.value = pwd;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }, password);
+            }
+            await this.takeScreenshot('credentials_entered');
+            // ========== 3. Select database ==========
+            console.log(chalk_1.default.yellow(`Selecting database: ${database}`));
+            // Map database name to its value in the hidden input
+            let databaseValue = '';
             if (database === 'ARCHIVE') {
-                dbOptionId = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI0T0';
+                databaseValue = '3';
             }
             else if (database === 'TEST') {
-                dbOptionId = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI1T0';
+                databaseValue = '2';
             }
             else if (database === 'URMCCEX3') {
-                dbOptionId = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI2T0';
+                databaseValue = '1';
             }
             else {
                 throw new Error(`Unknown database: ${database}`);
             }
-            // Select the database option
-            await this.page.evaluate((optionId) => {
-                const option = document.querySelector(optionId);
-                if (option) {
-                    option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-                }
-                else {
-                    throw new Error(`Database option ${optionId} not found`);
-                }
-            }, dbOptionId);
-            // Wait for selection to be registered
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            // Take a screenshot after database selection
-            await this.takeScreenshot('login_db_selected');
-            // Click login button using JavaScript click
-            await this.page.evaluate(() => {
-                const loginButton = document.querySelector('#ContentPlaceHolder1_btnLogin_CD');
-                if (loginButton) {
-                    loginButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-                }
-                else {
-                    throw new Error('Login button not found');
-                }
-            });
-            // Wait for navigation to complete (either redirect or error message)
-            await this.page.waitForNavigation({ timeout: 30000, waitUntil: 'networkidle2' })
-                .catch(async () => {
-                // If navigation fails, check if error message is displayed
-                const errorVisible = this.page && await this.page.evaluate(() => {
-                    const errorMsg = document.querySelector('#ContentPlaceHolder1_lblLoginError');
-                    return errorMsg && window.getComputedStyle(errorMsg).display !== 'none';
+            // Multiple methods to set the database
+            let dbSelectionSuccess = false;
+            // Method 1: Try direct manipulation of hidden inputs
+            try {
+                await this.page.evaluate((dbValue, dbName) => {
+                    // Set hidden value input
+                    const hiddenInput = document.querySelector('#ContentPlaceHolder1_cboDatabase_VI');
+                    if (hiddenInput) {
+                        hiddenInput.value = dbValue;
+                    }
+                    else {
+                        throw new Error('Hidden input not found');
+                    }
+                    // Set visible input text
+                    const visibleInput = document.querySelector('#ContentPlaceHolder1_cboDatabase_I');
+                    if (visibleInput) {
+                        visibleInput.value = dbName;
+                    }
+                    else {
+                        throw new Error('Visible input not found');
+                    }
+                    // Dispatch change events
+                    if (visibleInput) {
+                        visibleInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }, databaseValue, database);
+                // Verify database was set correctly
+                const selectedDb = await this.page.evaluate(() => {
+                    const input = document.querySelector('#ContentPlaceHolder1_cboDatabase_I');
+                    return input ? input.value : '';
                 });
-                if (errorVisible) {
-                    const errorText = await this.page?.evaluate(() => {
-                        const errorMsg = document.querySelector('#ContentPlaceHolder1_lblLoginError');
-                        return errorMsg ? errorMsg.textContent : 'Unknown error';
-                    });
-                    await this.takeScreenshot('login_error');
-                    throw new Error(`Login failed: ${errorText}`);
+                if (selectedDb === database) {
+                    console.log(chalk_1.default.green(`Database selected successfully: ${selectedDb}`));
+                    dbSelectionSuccess = true;
                 }
+                else {
+                    console.log(chalk_1.default.yellow(`Method 1 for database selection failed. Got: ${selectedDb}`));
+                }
+            }
+            catch (error) {
+                console.log(chalk_1.default.yellow('Method 1 for database selection failed with error:', error));
+            }
+            // Method 2: Try using the dropdown UI if method 1 failed
+            if (!dbSelectionSuccess) {
+                console.log(chalk_1.default.yellow('Trying method 2 for database selection...'));
+                try {
+                    // Click the dropdown button
+                    await this.page.click('#ContentPlaceHolder1_cboDatabase_B-1');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await this.takeScreenshot('dropdown_opened');
+                    // Wait for the dropdown items to be visible
+                    await this.page.waitForSelector('.dxeListBoxItem_Aqua', { visible: true, timeout: 5000 });
+                    // Find the right selector based on the database
+                    let itemSelector;
+                    if (database === 'ARCHIVE') {
+                        itemSelector = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI0T0';
+                    }
+                    else if (database === 'TEST') {
+                        itemSelector = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI1T0';
+                    }
+                    else if (database === 'URMCCEX3') {
+                        itemSelector = '#ContentPlaceHolder1_cboDatabase_DDD_L_LBI2T0';
+                    }
+                    // Click the specific item
+                    await this.page.waitForSelector(itemSelector, { visible: true, timeout: 5000 });
+                    await this.page.click(itemSelector);
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // Verify database was set correctly
+                    const selectedDb = await this.page.evaluate(() => {
+                        const input = document.querySelector('#ContentPlaceHolder1_cboDatabase_I');
+                        return input ? input.value : '';
+                    });
+                    if (selectedDb === database) {
+                        console.log(chalk_1.default.green(`Database selected successfully: ${selectedDb}`));
+                        dbSelectionSuccess = true;
+                    }
+                    else {
+                        console.log(chalk_1.default.yellow(`Method 2 for database selection failed. Got: ${selectedDb}`));
+                    }
+                }
+                catch (error) {
+                    console.log(chalk_1.default.yellow('Method 2 for database selection failed with error:', error));
+                }
+            }
+            // Method 3: Try using keyboard navigation if previous methods failed
+            if (!dbSelectionSuccess) {
+                console.log(chalk_1.default.yellow('Trying method 3 for database selection...'));
+                try {
+                    // Click to focus the dropdown field
+                    await this.page.click('#ContentPlaceHolder1_cboDatabase_I');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Press Tab to get to the dropdown button
+                    await this.page.keyboard.press('Tab');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Press Space to open the dropdown
+                    await this.page.keyboard.press('Space');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Determine how many arrow presses needed
+                    let arrowPresses = 0;
+                    if (database === 'ARCHIVE') {
+                        arrowPresses = 0; // First item
+                    }
+                    else if (database === 'TEST') {
+                        arrowPresses = 1; // Second item
+                    }
+                    else if (database === 'URMCCEX3') {
+                        arrowPresses = 2; // Third item
+                    }
+                    // Press arrow down the required number of times
+                    for (let i = 0; i < arrowPresses; i++) {
+                        await this.page.keyboard.press('ArrowDown');
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    // Press Enter to select the highlighted option
+                    await this.page.keyboard.press('Enter');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    // Verify database was set correctly
+                    const selectedDb = await this.page.evaluate(() => {
+                        const input = document.querySelector('#ContentPlaceHolder1_cboDatabase_I');
+                        return input ? input.value : '';
+                    });
+                    if (selectedDb === database) {
+                        console.log(chalk_1.default.green(`Database selected successfully: ${selectedDb}`));
+                        dbSelectionSuccess = true;
+                    }
+                    else {
+                        console.log(chalk_1.default.yellow(`Method 3 for database selection failed. Got: ${selectedDb}`));
+                    }
+                }
+                catch (error) {
+                    console.log(chalk_1.default.yellow('Method 3 for database selection failed with error:', error));
+                }
+            }
+            // Final fallback - try injecting a script that explicitly sets the database value
+            if (!dbSelectionSuccess) {
+                console.log(chalk_1.default.yellow('Trying final fallback method for database selection...'));
+                await this.page.evaluate((dbValueToSet, dbNameToSet) => {
+                    // Create a dedicated function to handle the database selection
+                    function setDatabaseValue(dbValue, dbName) {
+                        try {
+                            // Set value in all possible input fields
+                            const possibleInputIds = [
+                                'ContentPlaceHolder1_cboDatabase_VI',
+                                'ContentPlaceHolder1_cboDatabase_I',
+                                'ctl00_ContentPlaceHolder1_cboDatabase_VI',
+                                'ctl00_ContentPlaceHolder1_cboDatabase_I'
+                            ];
+                            let successCount = 0;
+                            possibleInputIds.forEach(id => {
+                                const input = document.getElementById(id);
+                                if (input) {
+                                    if (id.includes('_VI')) {
+                                        // Hidden value input
+                                        input.value = dbValue;
+                                        successCount++;
+                                    }
+                                    else {
+                                        // Visible text input
+                                        input.value = dbName;
+                                        successCount++;
+                                    }
+                                    // Dispatch input and change events
+                                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                                }
+                            });
+                            return successCount > 0;
+                        }
+                        catch (e) {
+                            console.error('Error in setDatabaseValue:', e);
+                            return false;
+                        }
+                    }
+                    // Execute the function
+                    return setDatabaseValue(dbValueToSet, dbNameToSet);
+                }, databaseValue, database);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Final verification
+                const finalDbValue = await this.page.evaluate(() => {
+                    const input = document.querySelector('#ContentPlaceHolder1_cboDatabase_I');
+                    return input ? input.value : '';
+                });
+                console.log(chalk_1.default.yellow(`Final database value: ${finalDbValue}`));
+            }
+            await this.takeScreenshot('before_login_click');
+            // ========== 4. Click login button ==========
+            console.log(chalk_1.default.yellow('Submitting login form...'));
+            // Store current URL to detect navigation
+            const startUrl = this.page.url();
+            // Multiple methods to submit the form
+            let loginSubmitted = false;
+            // Method 1: Click the login button
+            try {
+                await this.page.click('#ContentPlaceHolder1_btnLogin_CD');
+                loginSubmitted = true;
+            }
+            catch (error) {
+                console.log(chalk_1.default.yellow('Method 1 for login button failed, trying method 2...'));
+            }
+            // Method 2: JavaScript click if method 1 failed
+            if (!loginSubmitted) {
+                try {
+                    await this.page.evaluate(() => {
+                        const loginButton = document.querySelector('#ContentPlaceHolder1_btnLogin_CD');
+                        if (loginButton) {
+                            loginButton.click();
+                            return true;
+                        }
+                        return false;
+                    });
+                    loginSubmitted = true;
+                }
+                catch (error) {
+                    console.log(chalk_1.default.yellow('Method 2 for login button failed, trying method 3...'));
+                }
+            }
+            // Method 3: Submit the form directly if previous methods failed
+            if (!loginSubmitted) {
+                try {
+                    await this.page.evaluate(() => {
+                        const form = document.querySelector('form');
+                        if (form) {
+                            form.submit();
+                            return true;
+                        }
+                        return false;
+                    });
+                    loginSubmitted = true;
+                }
+                catch (error) {
+                    console.log(chalk_1.default.yellow('Method 3 for login button failed, trying method 4...'));
+                }
+            }
+            // Method 4: Use __doPostBack if all else fails
+            if (!loginSubmitted) {
+                try {
+                    await this.page.evaluate(() => {
+                        // Try to use __doPostBack if it's defined (common in ASP.NET WebForms)
+                        if (typeof __doPostBack === 'function') {
+                            __doPostBack('ctl00$ContentPlaceHolder1$btnLogin', '');
+                            return true;
+                        }
+                        return false;
+                    });
+                    loginSubmitted = true;
+                }
+                catch (error) {
+                    console.log(chalk_1.default.yellow('Method 4 for login button failed'));
+                }
+            }
+            if (!loginSubmitted) {
+                throw new Error('All login submission methods failed');
+            }
+            // ========== 5. Wait for navigation and verify login success ==========
+            console.log(chalk_1.default.yellow('Waiting for navigation after login submission...'));
+            // Try to wait for navigation
+            try {
+                // Wait for any of these events to occur:
+                // 1. Navigation to a new page
+                // 2. Error message becoming visible
+                // 3. Timeout
+                await Promise.race([
+                    this.page.waitForNavigation({ timeout: 30000, waitUntil: 'networkidle2' }),
+                    this.page.waitForFunction(() => {
+                        const errorMsg = document.querySelector('#ContentPlaceHolder1_lblLoginError');
+                        return errorMsg && window.getComputedStyle(errorMsg).display !== 'none';
+                    }, { timeout: 30000 })
+                ]);
+            }
+            catch (error) {
+                console.log(chalk_1.default.yellow('Navigation timeout or error, checking current state...'));
+            }
+            // Check if URL changed (indicating successful navigation)
+            const newUrl = this.page.url();
+            if (newUrl !== startUrl) {
+                console.log(chalk_1.default.green(`URL changed from ${startUrl} to ${newUrl}, navigation detected`));
+            }
+            else {
+                console.log(chalk_1.default.yellow('URL did not change, checking for errors...'));
+            }
+            await this.takeScreenshot('after_login_attempt');
+            // Check if there's a visible error message
+            const errorVisible = await this.page.evaluate(() => {
+                const errorMsg = document.querySelector('#ContentPlaceHolder1_lblLoginError');
+                return errorMsg && window.getComputedStyle(errorMsg).display !== 'none';
             });
-            // Take a screenshot after login attempt
-            await this.takeScreenshot('login_after');
-            // Verify we're not still on the login page
+            if (errorVisible) {
+                const errorText = await this.page.evaluate(() => {
+                    const errorMsg = document.querySelector('#ContentPlaceHolder1_lblLoginError');
+                    return errorMsg ? errorMsg.textContent : 'Unknown error';
+                });
+                await this.takeScreenshot('login_error');
+                throw new Error(`Login failed: ${errorText}`);
+            }
+            // Final verification that we're not on the login page
             const stillOnLoginPage = await this.isLoginPage();
             if (stillOnLoginPage) {
-                throw new Error('Login failed: Still on login page after login attempt');
+                console.log(chalk_1.default.red('Still on login page after login attempt'));
+                // One final effort - directly navigate to the home page
+                try {
+                    console.log(chalk_1.default.yellow('Attempting direct navigation to home page...'));
+                    await this.page.goto('http://10.221.0.155/MMWeb/Default.aspx', {
+                        waitUntil: 'networkidle2',
+                        timeout: 20000
+                    });
+                    // Check one more time
+                    const finalCheck = await this.isLoginPage();
+                    if (finalCheck) {
+                        throw new Error('Login failed: Still on login page after all attempts');
+                    }
+                }
+                catch (error) {
+                    throw new Error('Login failed: Unable to navigate away from login page');
+                }
             }
+            // Success!
             console.log(chalk_1.default.green('Login successful'));
+            await this.takeScreenshot('login_success');
         }
         catch (error) {
             // Take screenshot on failure if not already taken
