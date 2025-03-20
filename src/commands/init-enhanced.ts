@@ -45,23 +45,23 @@ export async function initWorkOrder(workOrderNumber: string, controlNumber?: str
     let resultMessage = `Work order ${workOrderNumber} initialized successfully with directory structure`;
 
     // Prompt user if they want to import notes from Medimizer
-    const { importNotes } = await inquirer.prompt([
+    const { importData } = await inquirer.prompt([
       {
         type: 'confirm',
-        name: 'importNotes',
+        name: 'importData',
         message: chalk.yellow('Would you like to import notes from Medimizer?'),
         default: true
       }
     ]);
 
-    if (importNotes) {
+    if (importData) {
       try {
         console.log(chalk.yellow(`Importing notes for work order ${workOrderNumber}...`));
-        const importResult = await importNotesFromMedimizer(workOrderNumber);
+        const importResult = await importFromMedimizer(workOrderNumber);
         resultMessage += `\n${importResult}`;
       } catch (importError) {
-        console.error(chalk.red(`Error importing notes: ${importError instanceof Error ? importError.message : 'Unknown error'}`));
-        resultMessage += `\nFailed to import notes from Medimizer.`;
+        console.error(chalk.red(`Error importing from Medimizer: ${importError instanceof Error ? importError.message : 'Unknown error'}`));
+        resultMessage += `\nFailed to import from Medimizer.`;
       }
     }
 
@@ -78,97 +78,7 @@ export async function initWorkOrder(workOrderNumber: string, controlNumber?: str
 }
 
 /**
- * Import notes from Medimizer for a work order
- * Handles login if needed
- * 
- * @param workOrderNumber - 7-digit work order number
- * @returns A promise that resolves to a success message
- */
-async function importNotesFromMedimizer(workOrderNumber: string): Promise<string> {
-  // Get browser automation instance
-  const browser = BrowserAutomation.getInstance();
-
-  try {
-    // Navigate directly to the work order page
-    const url = `http://10.221.0.155/MMWeb/App_Pages/WOForm.aspx?wo=${workOrderNumber}&mode=Edit&tab=2`;
-    console.log(chalk.yellow(`Navigating to: ${url}`));
-    
-    await browser.initialize();
-    if (!browser.page) {
-      throw new Error("Browser page not initialized");
-    }
-    
-    // Navigate to the page
-    await browser.page.goto(url, { waitUntil: 'networkidle2' });
-    
-    // Check if we're on the login page
-    const isLoginPage = await browser.page.evaluate(() => {
-      return !!document.querySelector('#ContentPlaceHolder1_txtEmployeeCode_I');
-    });
-    
-    if (isLoginPage) {
-      console.log(chalk.yellow('Login page detected. Attempting to log in...'));
-      
-      // Use the improved login method
-      await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
-      
-      // After login, navigate to the original URL
-      await browser.page.goto(url, { waitUntil: 'networkidle2' });
-    }
-    
-    // Wait for the notes textarea to appear
-    console.log(chalk.yellow('Waiting for notes element...'));
-    await browser.page.waitForSelector('#ContentPlaceHolder1_pagWorkOrder_memNotes_I', { 
-      timeout: 10000,
-      visible: true 
-    });
-    
-    // Extract the notes
-    const notes = await browser.page.evaluate(() => {
-      const textarea = document.querySelector('#ContentPlaceHolder1_pagWorkOrder_memNotes_I') as HTMLTextAreaElement;
-      return textarea ? textarea.value : '';
-    });
-    
-    // Get current date for timestamp
-    const currentDate = new Date();
-    const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
-    const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
-    
-    // Format notes with timestamp
-    const formattedNotes = `
-================================
-IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
-================================
-
-${notes || '~No notes found in Medimizer~'}
-
-`;
-    
-    // Write notes to file
-    await writeNotesFile(workOrderNumber, formattedNotes);
-    
-    // Close the browser
-    await browser.close();
-    
-    return 'Notes imported successfully from Medimizer';
-  } catch (error) {
-    // Make sure to close the browser even if there's an error
-    try {
-      await browser.close();
-    } catch (closeError) {
-      console.log(chalk.yellow(`Warning: Could not close browser properly: ${closeError instanceof Error ? closeError.message : 'Unknown error'}`));
-    }
-    
-    if (error instanceof Error) {
-      throw new Error(`Failed to import notes: ${error.message}`);
-    } else {
-      throw new Error('Failed to import notes: Unknown error');
-    }
-  }
-}
-/**
  * Import notes and services from Medimizer for a work order
- * This function should be used in place of the previous importNotesFromMedimizer
  * 
  * @param workOrderNumber - 7-digit work order number
  * @returns A promise that resolves to a success message
@@ -192,27 +102,34 @@ async function importFromMedimizer(workOrderNumber: string): Promise<string> {
     console.log(chalk.yellow(`Importing services for work order ${workOrderNumber}...`));
     const services = await browser.importServices(workOrderNumber);
     
+    // Print services count for debugging
+    console.log(chalk.yellow(`Found ${services.length} services to import`));
+    
     // Get current date for timestamp
     const currentDate = new Date();
     const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
     const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
     
     // Format content with timestamp, notes, and services
-    const formattedContent = `
+    let formattedContent = `
 ================================
 IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
 ================================
 
 ${notes || '~No notes found in Medimizer~'}
 
+`;
+
+    // Only add services section if we actually found services
+    if (services && services.length > 0) {
+      formattedContent += `
 ================================
 IMPORTED SERVICES FROM MM
 ================================
-${services.length > 0 
-  ? services.join('\n')
-  : '~No services found in Medimizer~'}
+${services.join('\n')}
 
 `;
+    }
     
     // Write to the notes file
     await writeNotesFile(workOrderNumber, formattedContent);
@@ -220,7 +137,7 @@ ${services.length > 0
     // Close the browser
     await browser.close();
     
-    return `Notes and ${services.length} services imported successfully from Medimizer`;
+    return `Notes${services.length > 0 ? ` and ${services.length} services` : ''} imported successfully from Medimizer`;
   } catch (error) {
     // Make sure to close the browser even if there's an error
     try {

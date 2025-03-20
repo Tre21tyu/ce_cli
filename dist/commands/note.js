@@ -84,32 +84,37 @@ async function importNotes(workOrderNumber) {
         // Import services from Medimizer
         console.log(chalk_1.default.yellow(`Importing services for work order ${workOrderNumber}...`));
         const servicesFromMM = await browser.importServices(workOrderNumber);
+        // Print services count for debugging
+        console.log(chalk_1.default.yellow(`Found ${servicesFromMM.length} services to import`));
         // Get current date for timestamp
         const currentDate = new Date();
         const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
         const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
         // Format notes with timestamp, notes, and services
-        const formattedContent = `
+        let formattedContent = `
 ================================
 IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
 ================================
 
 ${notesFromMM || '~No notes found in Medimizer~'}
 
+`;
+        // Only add services section if we actually found services
+        if (servicesFromMM && servicesFromMM.length > 0) {
+            formattedContent += `
 ================================
 IMPORTED SERVICES FROM MM
 ================================
-${servicesFromMM.length > 0
-            ? servicesFromMM.join('\n')
-            : '~No services found in Medimizer~'}
+${servicesFromMM.join('\n')}
 
 `;
+        }
         // Write notes to file
         await (0, filesystem_1.writeNotesFile)(workOrderNumber, formattedContent);
-        console.log(chalk_1.default.green(`Notes and ${servicesFromMM.length} services imported successfully for work order ${workOrderNumber}`));
+        console.log(chalk_1.default.green(`Notes${servicesFromMM.length > 0 ? ` and ${servicesFromMM.length} services` : ''} imported successfully for work order ${workOrderNumber}`));
         // Close the browser after import
         await browser.close();
-        return `Notes and ${servicesFromMM.length} services imported successfully for work order ${workOrderNumber}`;
+        return `Notes${servicesFromMM.length > 0 ? ` and ${servicesFromMM.length} services` : ''} imported successfully for work order ${workOrderNumber}`;
     }
     catch (error) {
         if (error instanceof Error) {

@@ -47,7 +47,6 @@ export async function openNotes(workOrderNumber: string): Promise<string> {
     }
   }
 }
-
 /**
  * Import notes and services from Medimizer for a work order
  * 
@@ -88,6 +87,9 @@ export async function importNotes(workOrderNumber: string): Promise<string> {
     // Import services from Medimizer
     console.log(chalk.yellow(`Importing services for work order ${workOrderNumber}...`));
     const servicesFromMM = await browser.importServices(workOrderNumber);
+    
+    // Print services count for debugging
+    console.log(chalk.yellow(`Found ${servicesFromMM.length} services to import`));
 
     // Get current date for timestamp
     const currentDate = new Date();
@@ -95,31 +97,35 @@ export async function importNotes(workOrderNumber: string): Promise<string> {
     const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
 
     // Format notes with timestamp, notes, and services
-    const formattedContent = `
+    let formattedContent = `
 ================================
 IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
 ================================
 
 ${notesFromMM || '~No notes found in Medimizer~'}
 
+`;
+
+    // Only add services section if we actually found services
+    if (servicesFromMM && servicesFromMM.length > 0) {
+      formattedContent += `
 ================================
 IMPORTED SERVICES FROM MM
 ================================
-${servicesFromMM.length > 0 
-  ? servicesFromMM.join('\n')
-  : '~No services found in Medimizer~'}
+${servicesFromMM.join('\n')}
 
 `;
+    }
 
     // Write notes to file
     await writeNotesFile(workOrderNumber, formattedContent);
 
-    console.log(chalk.green(`Notes and ${servicesFromMM.length} services imported successfully for work order ${workOrderNumber}`));
+    console.log(chalk.green(`Notes${servicesFromMM.length > 0 ? ` and ${servicesFromMM.length} services` : ''} imported successfully for work order ${workOrderNumber}`));
     
     // Close the browser after import
     await browser.close();
 
-    return `Notes and ${servicesFromMM.length} services imported successfully for work order ${workOrderNumber}`;
+    return `Notes${servicesFromMM.length > 0 ? ` and ${servicesFromMM.length} services` : ''} imported successfully for work order ${workOrderNumber}`;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to import notes: ${error.message}`);
@@ -128,7 +134,6 @@ ${servicesFromMM.length > 0
     }
   }
 }
-
 /**
  * Parse services from notes
  * Looks for patterns like [Verb, Noun] => Description

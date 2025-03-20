@@ -800,10 +800,17 @@ public async extractServices(workOrderNumber: string): Promise<string[]> {
     console.log(chalk.yellow('Waiting for services table...'));
     
     try {
-      await this.page.waitForSelector('#ContentPlaceHolder1_pagWorkOrder_gvServInfo', { 
-        timeout: 10000,
-        visible: true 
-      });
+      // Wait for the table or any td element that might contain services
+      await Promise.race([
+        this.page.waitForSelector('#ContentPlaceHolder1_pagWorkOrder_gvServInfo', { 
+          timeout: 10000,
+          visible: true 
+        }),
+        this.page.waitForSelector('td.dxgv', {
+          timeout: 10000,
+          visible: true
+        })
+      ]);
     } catch (error) {
       console.log(chalk.red('Services table not found'));
       await this.takeScreenshot('services_table_not_found');
@@ -813,21 +820,46 @@ public async extractServices(workOrderNumber: string): Promise<string[]> {
     // Extract all service rows
     console.log(chalk.yellow('Extracting services...'));
     
+    // Dump page content to logs for debugging
+    const pageContent = await this.page.content();
+    console.log(chalk.gray('Page content sample: ' + pageContent.substring(0, 500) + '...'));
+    
+    // Find all service cells containing "Minutes" text
     const services = await this.page.evaluate(() => {
-      // Find all service cells in the table
-      const serviceCells = Array.from(document.querySelectorAll('#ContentPlaceHolder1_pagWorkOrder_gvServInfo td.dxgv'));
+      // Try multiple strategies to find service cells
       
-      // Filter out header cells and empty cells
-      const validCells = serviceCells.filter(cell => {
-        const text = cell.textContent?.trim() || '';
-        return text.includes('Minutes') || text.includes('Minute');
-      });
+      // Strategy 1: Direct table selector
+      let serviceCells = Array.from(document.querySelectorAll('#ContentPlaceHolder1_pagWorkOrder_gvServInfo td.dxgv'));
+      
+      // Strategy 2: Any td with service-like content
+      if (serviceCells.length === 0) {
+        serviceCells = Array.from(document.querySelectorAll('td.dxgv')).filter(cell => {
+          const text = cell.textContent?.trim() || '';
+          return text.includes('Minutes') || text.includes('Minute');
+        });
+      }
+      
+      // Strategy 3: Any element with service-like content
+      if (serviceCells.length === 0) {
+        const allElements = Array.from(document.querySelectorAll('*'));
+        serviceCells = allElements.filter(el => {
+          const text = el.textContent?.trim() || '';
+          return (text.includes('Minutes') || text.includes('Minute')) && 
+                 text.includes('/') && // date indicator
+                 (text.includes('AM') || text.includes('PM')); // time indicator
+        });
+      }
       
       // Extract the text content from each cell
-      return validCells.map(cell => cell.textContent?.trim() || '');
+      return serviceCells.map(cell => cell.textContent?.trim() || '');
     });
     
     console.log(chalk.green(`Found ${services.length} services`));
+    
+    // Log all raw services for debugging
+    services.forEach((service, index) => {
+      console.log(chalk.gray(`Service ${index + 1}: ${service.substring(0, 100)}...`));
+    });
     
     // Format each service
     const formattedServices: string[] = [];
@@ -837,6 +869,7 @@ public async extractServices(workOrderNumber: string): Promise<string[]> {
         const formattedService = this.formatServiceString(service);
         if (formattedService) {
           formattedServices.push(formattedService);
+          console.log(chalk.green(`Formatted service: ${formattedService}`));
         }
       } catch (error) {
         console.log(chalk.yellow(`Failed to format service: ${service}`));
@@ -868,25 +901,42 @@ public async extractServices(workOrderNumber: string): Promise<string[]> {
  */
 private formatServiceString(serviceString: string): string | null {
   try {
+    // Print the raw string for debugging
+    console.log(chalk.gray(`Formatting service string: ${serviceString}`));
+    
     // Clean up the string
     let cleanedString = serviceString.trim();
     
-    // Parse the date, time, duration, and description
-    // Format: " - MM/DD/YYYY HH:MM AM/PM - XX Minutes - Description"
+    // Try different regex patterns to match different possible formats
     
-    // Parse date and time
-    const dateTimeMatch = cleanedString.match(/\s*-\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2}\s*[AP]M)\s*-/i);
-    if (!dateTimeMatch) return null;
+    // Pattern 1: Standard format with date and time
+    let dateTimeMatch = cleanedString.match(/[^\d]*(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2}\s*[AP]M)[^\d]*/i);
+    
+    // Pattern 2: Alternative format with just date
+    if (!dateTimeMatch) {
+      dateTimeMatch = cleanedString.match(/[^\d]*(\d{1,2}\/\d{1,2}\/\d{4})[^\d]*/i);
+      
+      if (dateTimeMatch) {
+        // Use a default time if not found
+        dateTimeMatch[2] = "12:00 PM";
+      }
+    }
+    
+    if (!dateTimeMatch) {
+      console.log(chalk.yellow('Could not find date/time in service string'));
+      return null;
+    }
     
     const dateStr = dateTimeMatch[1];
-    const timeStr = dateTimeMatch[2].trim();
+    const timeStr = dateTimeMatch[2]?.trim() || "12:00 PM";
     
     // Parse the date into a Date object
-    const [month, day, year] = dateStr.split('/').map(num => parseInt(num));
+    let [month, day, year] = dateStr.split('/').map(num => parseInt(num));
     
     // Parse time
     let hours = parseInt(timeStr.split(':')[0]);
-    const minutes = parseInt(timeStr.split(':')[1].replace(/[^\d]/g, ''));
+    const minutesMatch = timeStr.match(/:(\d{2})/);
+    const minutes = minutesMatch ? parseInt(minutesMatch[1]) : 0;
     const isPM = timeStr.toUpperCase().includes('PM');
     
     if (isPM && hours < 12) hours += 12;
@@ -896,18 +946,56 @@ private formatServiceString(serviceString: string): string | null {
     const formattedDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
     const formattedTime = `${hours.toString().padStart(2, '0')}-${minutes.toString().padStart(2, '0')}`;
     
-    // Parse duration
-    const durationMatch = cleanedString.match(/-\s*(\d+)\s*Minute(s)?/i);
-    const duration = durationMatch ? parseInt(durationMatch[1]) : 0;
+    // Parse duration - try multiple patterns
+    let duration = 0;
+    
+    // Pattern 1: XX Minutes
+    const durationMatch1 = cleanedString.match(/(\d+)\s*Minute(s)?/i);
+    if (durationMatch1) {
+      duration = parseInt(durationMatch1[1]);
+    } else {
+      // Pattern 2: (Xh Ym)
+      const durationMatch2 = cleanedString.match(/\((\d+)h\s*(\d+)m\)/i);
+      if (durationMatch2) {
+        const hours = parseInt(durationMatch2[1]) || 0;
+        const mins = parseInt(durationMatch2[2]) || 0;
+        duration = hours * 60 + mins;
+      }
+    }
     
     // Parse description (service name)
-    const descriptionMatch = cleanedString.match(/Minute(s)?\s*-\s*(.*?)$/i);
-    if (!descriptionMatch) return null;
+    // Try multiple approaches to extract the service name
+    let description = "";
     
-    let description = descriptionMatch[2].trim();
+    // Approach 1: After "Minutes - "
+    const descMatch1 = cleanedString.match(/Minute(s)?\s*-\s*(.*?)(\||$)/i);
+    if (descMatch1) {
+      description = descMatch1[2].trim();
+    }
+    
+    // Approach 2: Look for a pattern where text follows a date/time and ends with a duration
+    if (!description) {
+      const parts = cleanedString.split(/\s*\|\s*/);
+      if (parts.length > 0) {
+        // Take the first part that isn't just a date/time
+        description = parts[0].replace(/\d{1,2}\/\d{1,2}\/\d{4}\s*\d{1,2}:\d{2}\s*[AP]M/, '').trim();
+      }
+    }
+    
+    // Approach 3: Just use everything after the duration
+    if (!description) {
+      const afterDuration = cleanedString.split(/\d+\s*Minute(s)?/i)[1];
+      if (afterDuration) {
+        description = afterDuration.replace(/^[^a-zA-Z0-9]+/, '').trim();
+      }
+    }
+    
+    // If we still don't have a description, use a default
+    if (!description) {
+      description = "Service";
+    }
     
     // Check if description has verb and noun or just verb
-    // Typically, if there's a comma, it's [Verb, Noun]
     let formattedDescription: string;
     if (description.includes(',')) {
       const [verb, noun] = description.split(',').map(part => part.trim());
@@ -920,10 +1008,10 @@ private formatServiceString(serviceString: string): string | null {
     return `${formattedDescription} (${duration}min) (${formattedDate} ${formattedTime}) => (||)`;
   } catch (error) {
     console.log(chalk.yellow(`Error formatting service: ${serviceString}`));
+    console.log(chalk.red(error instanceof Error ? error.message : String(error)));
     return null;
   }
 }
-
 /**
  * Import services from Medimizer for a work order
  * 
