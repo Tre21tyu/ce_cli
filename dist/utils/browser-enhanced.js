@@ -701,5 +701,160 @@ class BrowserAutomation {
             }
         }
     }
+    /**
+     * Extract services from the Medimizer services tab
+     * This is a new method to add to the BrowserAutomation class
+     *
+     * @param workOrderNumber - 7-digit work order number
+     * @returns A promise that resolves to an array of formatted service strings
+     */
+    async extractServices(workOrderNumber) {
+        try {
+            if (!this.browser || !this.page) {
+                throw new Error('Browser or page not initialized');
+            }
+            console.log(chalk_1.default.yellow('Navigating to services tab...'));
+            // Navigate to the services tab
+            const url = `http://10.221.0.155/MMWeb/App_Pages/WOForm.aspx?wo=${workOrderNumber}&mode=Edit&tab=1`;
+            await this.page.goto(url, { waitUntil: 'networkidle2' });
+            // Take a screenshot before extraction
+            await this.takeScreenshot('services_tab');
+            // Wait for the services table to load
+            console.log(chalk_1.default.yellow('Waiting for services table...'));
+            try {
+                await this.page.waitForSelector('#ContentPlaceHolder1_pagWorkOrder_gvServInfo', {
+                    timeout: 10000,
+                    visible: true
+                });
+            }
+            catch (error) {
+                console.log(chalk_1.default.red('Services table not found'));
+                await this.takeScreenshot('services_table_not_found');
+                return []; // Return empty array if no table is found
+            }
+            // Extract all service rows
+            console.log(chalk_1.default.yellow('Extracting services...'));
+            const services = await this.page.evaluate(() => {
+                // Find all service cells in the table
+                const serviceCells = Array.from(document.querySelectorAll('#ContentPlaceHolder1_pagWorkOrder_gvServInfo td.dxgv'));
+                // Filter out header cells and empty cells
+                const validCells = serviceCells.filter(cell => {
+                    const text = cell.textContent?.trim() || '';
+                    return text.includes('Minutes') || text.includes('Minute');
+                });
+                // Extract the text content from each cell
+                return validCells.map(cell => cell.textContent?.trim() || '');
+            });
+            console.log(chalk_1.default.green(`Found ${services.length} services`));
+            // Format each service
+            const formattedServices = [];
+            for (const service of services) {
+                try {
+                    const formattedService = this.formatServiceString(service);
+                    if (formattedService) {
+                        formattedServices.push(formattedService);
+                    }
+                }
+                catch (error) {
+                    console.log(chalk_1.default.yellow(`Failed to format service: ${service}`));
+                }
+            }
+            console.log(chalk_1.default.green(`Formatted ${formattedServices.length} services`));
+            // Take a screenshot after extraction
+            await this.takeScreenshot('services_extracted');
+            return formattedServices;
+        }
+        catch (error) {
+            await this.takeScreenshot('extract_services_failed');
+            if (error instanceof Error) {
+                throw new Error(`Failed to extract services: ${error.message}`);
+            }
+            else {
+                throw new Error('Failed to extract services: Unknown error');
+            }
+        }
+    }
+    /**
+     * Format a service string from Medimizer format to markdown format
+     *
+     * @param serviceString - Raw service string from Medimizer
+     * @returns Formatted service string in markdown format
+     */
+    formatServiceString(serviceString) {
+        try {
+            // Clean up the string
+            let cleanedString = serviceString.trim();
+            // Parse the date, time, duration, and description
+            // Format: " - MM/DD/YYYY HH:MM AM/PM - XX Minutes - Description"
+            // Parse date and time
+            const dateTimeMatch = cleanedString.match(/\s*-\s*(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{1,2}:\d{2}\s*[AP]M)\s*-/i);
+            if (!dateTimeMatch)
+                return null;
+            const dateStr = dateTimeMatch[1];
+            const timeStr = dateTimeMatch[2].trim();
+            // Parse the date into a Date object
+            const [month, day, year] = dateStr.split('/').map(num => parseInt(num));
+            // Parse time
+            let hours = parseInt(timeStr.split(':')[0]);
+            const minutes = parseInt(timeStr.split(':')[1].replace(/[^\d]/g, ''));
+            const isPM = timeStr.toUpperCase().includes('PM');
+            if (isPM && hours < 12)
+                hours += 12;
+            if (!isPM && hours === 12)
+                hours = 0;
+            // Format date and time in YYYY-MM-DD HH-MM format
+            const formattedDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            const formattedTime = `${hours.toString().padStart(2, '0')}-${minutes.toString().padStart(2, '0')}`;
+            // Parse duration
+            const durationMatch = cleanedString.match(/-\s*(\d+)\s*Minute(s)?/i);
+            const duration = durationMatch ? parseInt(durationMatch[1]) : 0;
+            // Parse description (service name)
+            const descriptionMatch = cleanedString.match(/Minute(s)?\s*-\s*(.*?)$/i);
+            if (!descriptionMatch)
+                return null;
+            let description = descriptionMatch[2].trim();
+            // Check if description has verb and noun or just verb
+            // Typically, if there's a comma, it's [Verb, Noun]
+            let formattedDescription;
+            if (description.includes(',')) {
+                const [verb, noun] = description.split(',').map(part => part.trim());
+                formattedDescription = `[${verb}, ${noun}]`;
+            }
+            else {
+                formattedDescription = `[${description}]`;
+            }
+            // Combine everything into the final format
+            return `${formattedDescription} (${duration}min) (${formattedDate} ${formattedTime}) => (||)`;
+        }
+        catch (error) {
+            console.log(chalk_1.default.yellow(`Error formatting service: ${serviceString}`));
+            return null;
+        }
+    }
+    /**
+     * Import services from Medimizer for a work order
+     *
+     * @param workOrderNumber - 7-digit work order number
+     * @returns A promise that resolves to an array of formatted service strings
+     */
+    async importServices(workOrderNumber) {
+        try {
+            // Initialize browser if needed
+            await this.initialize();
+            // Navigate to the work order page first to handle any login requirements
+            await this.navigateToWorkOrder(workOrderNumber, 0);
+            // Extract services
+            const services = await this.extractServices(workOrderNumber);
+            return services;
+        }
+        catch (error) {
+            if (error instanceof Error) {
+                throw new Error(`Failed to import services: ${error.message}`);
+            }
+            else {
+                throw new Error('Failed to import services: Unknown error');
+            }
+        }
+    }
 }
 exports.BrowserAutomation = BrowserAutomation;

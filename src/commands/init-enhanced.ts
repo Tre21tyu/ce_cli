@@ -166,3 +166,73 @@ ${notes || '~No notes found in Medimizer~'}
     }
   }
 }
+/**
+ * Import notes and services from Medimizer for a work order
+ * This function should be used in place of the previous importNotesFromMedimizer
+ * 
+ * @param workOrderNumber - 7-digit work order number
+ * @returns A promise that resolves to a success message
+ */
+async function importFromMedimizer(workOrderNumber: string): Promise<string> {
+  // Get browser automation instance
+  const browser = BrowserAutomation.getInstance();
+
+  try {
+    // Initialize the browser
+    await browser.initialize();
+    if (!browser.page) {
+      throw new Error("Browser page not initialized");
+    }
+    
+    // Import notes
+    console.log(chalk.yellow(`Importing notes for work order ${workOrderNumber}...`));
+    const notes = await browser.importNotes(workOrderNumber);
+    
+    // Import services
+    console.log(chalk.yellow(`Importing services for work order ${workOrderNumber}...`));
+    const services = await browser.importServices(workOrderNumber);
+    
+    // Get current date for timestamp
+    const currentDate = new Date();
+    const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
+    
+    // Format content with timestamp, notes, and services
+    const formattedContent = `
+================================
+IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
+================================
+
+${notes || '~No notes found in Medimizer~'}
+
+================================
+IMPORTED SERVICES FROM MM
+================================
+${services.length > 0 
+  ? services.join('\n')
+  : '~No services found in Medimizer~'}
+
+`;
+    
+    // Write to the notes file
+    await writeNotesFile(workOrderNumber, formattedContent);
+    
+    // Close the browser
+    await browser.close();
+    
+    return `Notes and ${services.length} services imported successfully from Medimizer`;
+  } catch (error) {
+    // Make sure to close the browser even if there's an error
+    try {
+      await browser.close();
+    } catch (closeError) {
+      console.log(chalk.yellow(`Warning: Could not close browser properly: ${closeError instanceof Error ? closeError.message : 'Unknown error'}`));
+    }
+    
+    if (error instanceof Error) {
+      throw new Error(`Failed to import from Medimizer: ${error.message}`);
+    } else {
+      throw new Error('Failed to import from Medimizer: Unknown error');
+    }
+  }
+}

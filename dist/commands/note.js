@@ -13,7 +13,7 @@ const editor_1 = require("../utils/editor");
 const browser_enhanced_1 = require("../utils/browser-enhanced");
 const chalk_1 = __importDefault(require("chalk"));
 /**
- * Open notes for a work order
+ * Open notes for a work order using nvim
  * Either creates a new notes file or opens an existing one
  *
  * @param workOrderNumber - 7-digit work order number
@@ -38,9 +38,9 @@ async function openNotes(workOrderNumber) {
         }
         // Create or get the notes file
         const notesFilePath = await (0, filesystem_1.createNotesFile)(workOrderNumber);
-        // Open the notes file in the editor
-        await (0, editor_1.openNotesInEditor)(workOrderNumber);
-        return `Notes for work order ${workOrderNumber} opened successfully`;
+        // Open the notes file in nvim
+        await (0, editor_1.openNotesInNvim)(workOrderNumber);
+        return `Notes for work order ${workOrderNumber} opened successfully with nvim`;
     }
     catch (error) {
         if (error instanceof Error) {
@@ -52,7 +52,7 @@ async function openNotes(workOrderNumber) {
     }
 }
 /**
- * Import notes from Medimizer for a work order
+ * Import notes and services from Medimizer for a work order
  *
  * @param workOrderNumber - 7-digit work order number
  * @returns A promise that resolves when the import is complete
@@ -81,23 +81,35 @@ async function importNotes(workOrderNumber) {
         // Import notes from Medimizer
         console.log(chalk_1.default.yellow(`Importing notes for work order ${workOrderNumber}...`));
         const notesFromMM = await browser.importNotes(workOrderNumber);
+        // Import services from Medimizer
+        console.log(chalk_1.default.yellow(`Importing services for work order ${workOrderNumber}...`));
+        const servicesFromMM = await browser.importServices(workOrderNumber);
         // Get current date for timestamp
-        const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-        // Format notes with timestamp
-        const formattedNotes = `
+        const currentDate = new Date();
+        const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
+        const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
+        // Format notes with timestamp, notes, and services
+        const formattedContent = `
 ================================
-IMPORTED FROM MM ON ${currentDate}
+IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
 ================================
 
-${notesFromMM || '~Notes~'}
+${notesFromMM || '~No notes found in Medimizer~'}
+
+================================
+IMPORTED SERVICES FROM MM
+================================
+${servicesFromMM.length > 0
+            ? servicesFromMM.join('\n')
+            : '~No services found in Medimizer~'}
 
 `;
         // Write notes to file
-        await (0, filesystem_1.writeNotesFile)(workOrderNumber, formattedNotes);
-        console.log(chalk_1.default.green(`Notes imported successfully for work order ${workOrderNumber}`));
+        await (0, filesystem_1.writeNotesFile)(workOrderNumber, formattedContent);
+        console.log(chalk_1.default.green(`Notes and ${servicesFromMM.length} services imported successfully for work order ${workOrderNumber}`));
         // Close the browser after import
         await browser.close();
-        return `Notes imported successfully for work order ${workOrderNumber}`;
+        return `Notes and ${servicesFromMM.length} services imported successfully for work order ${workOrderNumber}`;
     }
     catch (error) {
         if (error instanceof Error) {

@@ -10,3 +10,9 @@ Where wo is the work order number and pos are purchase orders for that WO number
 - Create POs from templates
 
 The key point so far is the note taking system. It will make it so that I, as a technician can effectively *@ajust take notes* and rely on ce_cli to do the rest (unless I have to intervene)
+
+<td class="dxgv">-   12/27/2024 11:34 AM -   10 Minutes - Documentation </td>
+
+[Documentation] (10min) (2024-27-12) => (||) 
+
+

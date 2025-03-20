@@ -1,11 +1,11 @@
 import { WorkDatabase } from '../database';
 import { createNotesFile, readNotesFile, writeNotesFile } from '../utils/filesystem';
-import { openNotesInEditor } from '../utils/editor';
+import { openNotesInNvim } from '../utils/editor';
 import { BrowserAutomation } from '../utils/browser-enhanced';
 import chalk from 'chalk';
 
 /**
- * Open notes for a work order
+ * Open notes for a work order using nvim
  * Either creates a new notes file or opens an existing one
  * 
  * @param workOrderNumber - 7-digit work order number
@@ -35,10 +35,10 @@ export async function openNotes(workOrderNumber: string): Promise<string> {
     // Create or get the notes file
     const notesFilePath = await createNotesFile(workOrderNumber);
 
-    // Open the notes file in the editor
-    await openNotesInEditor(workOrderNumber);
+    // Open the notes file in nvim
+    await openNotesInNvim(workOrderNumber);
 
-    return `Notes for work order ${workOrderNumber} opened successfully`;
+    return `Notes for work order ${workOrderNumber} opened successfully with nvim`;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to open notes: ${error.message}`);
@@ -49,7 +49,7 @@ export async function openNotes(workOrderNumber: string): Promise<string> {
 }
 
 /**
- * Import notes from Medimizer for a work order
+ * Import notes and services from Medimizer for a work order
  * 
  * @param workOrderNumber - 7-digit work order number
  * @returns A promise that resolves when the import is complete
@@ -85,28 +85,41 @@ export async function importNotes(workOrderNumber: string): Promise<string> {
     console.log(chalk.yellow(`Importing notes for work order ${workOrderNumber}...`));
     const notesFromMM = await browser.importNotes(workOrderNumber);
 
+    // Import services from Medimizer
+    console.log(chalk.yellow(`Importing services for work order ${workOrderNumber}...`));
+    const servicesFromMM = await browser.importServices(workOrderNumber);
+
     // Get current date for timestamp
-    const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const currentDate = new Date();
+    const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
 
-    // Format notes with timestamp
-    const formattedNotes = `
+    // Format notes with timestamp, notes, and services
+    const formattedContent = `
 ================================
-IMPORTED FROM MM ON ${currentDate}
+IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
 ================================
 
-${notesFromMM || '~Notes~'}
+${notesFromMM || '~No notes found in Medimizer~'}
+
+================================
+IMPORTED SERVICES FROM MM
+================================
+${servicesFromMM.length > 0 
+  ? servicesFromMM.join('\n')
+  : '~No services found in Medimizer~'}
 
 `;
 
     // Write notes to file
-    await writeNotesFile(workOrderNumber, formattedNotes);
+    await writeNotesFile(workOrderNumber, formattedContent);
 
-    console.log(chalk.green(`Notes imported successfully for work order ${workOrderNumber}`));
+    console.log(chalk.green(`Notes and ${servicesFromMM.length} services imported successfully for work order ${workOrderNumber}`));
     
     // Close the browser after import
     await browser.close();
 
-    return `Notes imported successfully for work order ${workOrderNumber}`;
+    return `Notes and ${servicesFromMM.length} services imported successfully for work order ${workOrderNumber}`;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to import notes: ${error.message}`);
@@ -151,15 +164,15 @@ export function parseServicesFromNotes(notes: string): Array<{verb: string, noun
  * @param services - Services to validate
  * @returns A promise that resolves to an array of validation results
  */
-export async function validateServices(services: Array<{verb: string, noun: string, description: string}>): Promise<
-  Array<{
-    verb: string,
-    noun: string,
-    description: string,
-    verbValid: boolean,
-    nounValid: boolean
-  }>
-> {
+export async function validateServices(
+  services: Array<{verb: string, noun: string, description: string}>
+): Promise<Array<{
+  verb: string,
+  noun: string,
+  description: string,
+  verbValid: boolean,
+  nounValid: boolean
+}>> {
   // Get database instance
   const db = WorkDatabase.getInstance();
   
