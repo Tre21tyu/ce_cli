@@ -188,7 +188,48 @@ export class CeCliRepl {
         }
       }
       break;
+// This is the section to add to the processCommand method in repl.ts
 
+case 'stack':
+  if (args.length === 0) {
+    try {
+      // If no arguments, display the stack
+      const result = await displayStack();
+      console.log(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        console.log(chalk.red(error.message));
+      } else {
+        console.log(chalk.red('An unknown error occurred'));
+      }
+    }
+  } else {
+    try {
+      // If argument is provided, stack the work order
+      const result = await stackWorkOrder(args[0]);
+      console.log(chalk.green(result));
+    } catch (error) {
+      if (error instanceof Error) {
+        console.log(chalk.red(error.message));
+      } else {
+        console.log(chalk.red('An unknown error occurred'));
+      }
+    }
+  }
+  break;
+
+case 'clear-stack':
+  try {
+    const result = await clearStack();
+    console.log(chalk.green(result));
+  } catch (error) {
+    if (error instanceof Error) {
+      console.log(chalk.red(error.message));
+    } else {
+      console.log(chalk.red('An unknown error occurred'));
+    }
+  }
+  break;
       case 'close':
         if (args.length === 0) {
         console.log(chalk.red('Error: Work order number is required'));
@@ -285,7 +326,9 @@ export class CeCliRepl {
       break;
 
       case 'help':
+        // This is the section to add to the displayHelp method in repl.ts
         this.displayHelp();
+
       break;
 
       case 'clear':
@@ -327,5 +370,7 @@ export class CeCliRepl {
                              console.log(chalk.cyan('  help') + ' - Display this help information');
                              console.log(chalk.cyan('  clear') + ' - Clear the screen');
                              console.log(chalk.cyan('  exit') + ' - Exit the application');
+                             console.log(chalk.cyan('  stack [wo-number]') + ' - Add a work order to the stack or display the current stack');
+                             console.log(chalk.cyan('  clear-stack') + ' - Clear all work orders from the stack');
   }
 }

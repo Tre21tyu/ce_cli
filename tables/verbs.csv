@@ -1,0 +1,144 @@
+verb_keyword,verb_code,has_noun
+Adjusted,102,True
+Aligned,104,True
+Analyzed,106,True
+Answered,107,True
+Assembled,108,True
+Assisted,110,True
+Attached,111,True
+Backed Up,112,True
+Biomedical Staff Instruction,988,False
+Calibrated,116,True
+Changed,118,True
+Charged,120,True
+Cleaned,122,True
+Cleared,124,True
+Committee Meeting,987,False
+Completed All Scheduled Inspections,10,False
+Consultation,93,False
+Consulted,125,True
+Corrected by User,42,False
+Could Not Duplicate Problem,43,False
+Could Not Verify Problem,40,False
+Delay Service,990,False
+Delivered,128,True
+Department Meeting (Clients),95,False
+Department Meeting (Clin.Eng.),985,False
+Disassembled,129,True
+Disinfected,127,True
+Documentation,91,False
+Drained,130,True
+Exchanged,136,True
+Fabricated,138,True
+Failed Inspection in Old Medi-Mizer,999,False
+Filled,140,True
+First Contact,810,False
+Identified,146,True
+Improper Care,50,False
+Improper Operation of Accessory,60,False
+Improper Operation of Controls,61,False
+Improper Operation of Equipment,62,False
+Incoming Inspection - New,30,False
+Incoming Inspection - Other,31,False
+Incoming Inspection - Return,32,False
+Inservice Development,73,False
+Inspected,148,True
+Installation,96,False
+Installed,150,True
+Labeled,152,True
+Locate Equipment,817,False
+Lubricated,154,True
+Modified,155,True
+No Problem  - Verified Operation,41,False
+Notified Physicist,960,False
+OJT Given,977,False
+OJT Received,978,False
+Ordered,156,True
+P.M.,4,False
+Packed,160,True
+Parts Inventory,82,False
+Parts Ordered,815,False
+Parts Received,816,False
+Performance,2,False
+Performance and P.M.,6,False
+PHI Removed,819,False
+Ran,164,True
+Reattached,165,True
+Rebooted,166,True
+Rebuilt,168,True
+Received,170,True
+Recharged,172,True
+Reconfigured,200,True
+Reconnected,174,True
+Referred to,175,True
+Refilled,176,True
+Reformatted,178,True
+Reloaded,180,True
+Relocated,182,True
+Removed,184,True
+Removed from Inventory,26,False
+Removed from Service,811,False
+Repair Feasibility Analysis,92,False
+Repaired,186,True
+Replaced,188,True
+Repositioned,187,True
+Researched,190,True
+Reseated,192,True
+Reserved,193,True
+Reset,194,True
+Resoldered,196,True
+Returned Part to Vendor,101,False
+Returned to Service,814,False
+Reviewed,198,True
+Rinsed,201,True
+Rounds,984,False
+Safety,1,False
+Safety and P.M.,5,False
+Safety and Performance,3,False
+"Safety, Performance and P.M.",7,False
+Scheduled Parts Replacement,9,False
+Sealed,203,True
+Seasoned,202,True
+Service Began,812,False
+Service Completed,813,False
+Serviced,204,True
+Set,206,True
+Shipped,209,True
+Shop Work,980,False
+Soldered,208,True
+Special Project,99,False
+Staff Instruction (Clinical),70,False
+Staff Instruction by Phone,71,False
+Stockroom,982,False
+Supplied,212,True
+System Down,818,False
+Team Leader Administration,951,False
+Terminated,213,True
+Test Development,986,False
+Tested,215,True
+Tightened,214,True
+Training and Education,981,False
+Transported,217,True
+Travel Time,94,False
+Unable to Complete,21,False
+Unable to Locate for Service,920,False
+Unit Contaminated,51,False
+Unit Damaged,52,False
+Unit in Storage,24,False
+Unit Not Available,22,False
+Unit Not Available for Service,922,False
+Unit Not Located,20,False
+Unjammed,218,True
+Unpacked,222,True
+Upgraded,224,True
+Vendor Assist. Contract,853,False
+Vendor Assist. T & M,855,False
+Vendor Assist. Warranty,851,False
+Vendor Coordinated Repair,857,False
+Vendor Inspection Pending,29,False
+Vendor Not Called in - Insurance,860,False
+Verified,225,True
+Waiting Time,890,False
+Warranty Inspection,8,False
+Water Tests,13,False
+Work Order Entry,989,False

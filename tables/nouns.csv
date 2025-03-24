@@ -1,0 +1,168 @@
+noun_keyword,noun_code
+Accessory,252
+Air Tube,255
+Alarm,256
+Arm,259
+Battery Charger,260
+Battery/Batteries,262
+Bearing,264
+Belt(s),268
+Bezel,269
+Blender,273
+Blood Pressure Cuff,272
+Bolt,275
+Bracket,274
+Brakes,276
+Bridge,278
+Button,285
+Cable,282
+Camera,286
+Cap,287
+Cart,296
+Cartridge,297
+Case,298
+Cassette,299
+Caster(s),300
+Choke,306
+Circuit,307
+Circuit Breaker,308
+Clamp,310
+Clock,312
+Collimator,320
+Compressor,322
+Computer,324
+Configuration,325
+Connector,326
+Contacts,330
+Control,332
+Cover,333
+Crt,336
+Cryogens,338
+Date,343
+Detector,346
+Diagnostics,347
+Diaphragm,348
+Disk Drive,354
+Display,351
+Door,356
+Dye,358
+Eh+s Radsafety,362
+Electrical Parts,366
+Facilities Department,371
+Fan,370
+Feet,372
+Film,374
+Filter,378
+Fitting,380
+Fluid,382
+Foot Pedal,386
+Foot Switch,388
+Furnace,393
+Fuse,394
+Gas,404
+Gasket,406
+Gauge,408
+Generator,409
+Handle,414
+Hardware,416
+Head(s),420
+Heater,426
+Heatshield,425
+Hemolyzer,421
+Holder,423
+Hose(s),428
+Housing,431
+Hydraulic Assy,430
+Image,433
+Information Systems,449
+Injector,435
+Instrument,443
+Keyboard,450
+Kit,451
+Knob,452
+Label,454
+Lamp,456
+Laser Head,458
+Latch,460
+LCD,462
+Leads,461
+Leak,466
+Lens,469
+Lock Down Device,472
+Manifold,476
+Manual,473
+Mechanical Assembly,478
+Missing Parts,488
+Modification,490
+Module,491
+Monitor,493
+Motherboard,487
+Motor,492
+Mounting Hardware,494
+Network,495
+Operation,499
+Optical Sensor,505
+O-Ring(s),496
+PACS,701
+Panel,508
+Paper,509
+Part(s),511
+Patient Cable,513
+Patient Leads,512
+PC Board,514
+Pillow Speaker / Telemike,517
+Pin,518
+Plate,520
+Plug,522
+Port,525
+Potentiometer,524
+Power Cord,526
+Power Plug,528
+Power Supply,530
+Pressure,532
+Printer Assembly,534
+Prism,537
+Probe,538
+Pump,546
+Rate,545
+Regulator(s),556
+Relay,558
+Retainer,561
+"Screen, Phosphor",577
+Screw,575
+Seal,576
+Sensor,580
+Slip Rings Hi-Volt,590
+Slip Rings Lo-Volt,592
+Software,596
+Spark Stand,603
+Speaker,602
+Spring,606
+Staff,611
+Stepper,608
+Strap,610
+Switch(es),616
+"Switch/Pendant, Hand",615
+System,618
+Table,619
+Tank,620
+Temperature,622
+Terminal,624
+Test,617
+"Thermometer, Glass/Plastic",627
+Timer,630
+Trackball,631
+Transducer,632
+Transducer Sensor,634
+Transformer,636
+Transmitter,642
+Tubing,644
+Unit,650
+Valve,654
+Vendor,657
+Water,663
+Wheel(s),664
+Wire,666
+X-Ray Film Developer,688
+X-Ray Generator,674
+X-Ray Tube,684

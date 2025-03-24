@@ -22,6 +22,7 @@
     "figlet": "^1.6.0",
     "inquirer": "^8.2.5",
     "knex": "^2.5.1",
+    "papaparse": "^5.5.2",
     "puppeteer": "^24.4.0"
   },
   "devDependencies": {
@@ -29,6 +30,7 @@
     "@types/figlet": "^1.5.6",
     "@types/inquirer": "^8.2.6",
     "@types/node": "^18.16.19",
+    "@types/papaparse": "^5.3.15",
     "ts-node": "^10.9.1",
     "typescript": "^5.8.2"
   },
