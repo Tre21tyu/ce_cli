@@ -55,30 +55,40 @@ export async function parseServices(workOrderNumber: string): Promise<ParsedServ
     // Extract services that don't have the (||) marker
     const services: ParsedService[] = [];
     
-    // Match services with the format [Verb] (YYYY-MM-DD HH:MM) => notes
-    // or [Verb, Noun] (YYYY-MM-DD HH:MM) => notes
-    // and don't have the (||) marker
-    const serviceRegex = /\[(.*?)(?:,\s*(.*?))?\]\s*\(([\d-]+\s[\d:-]+)\)\s*=>\s*(.*?)(?:\n\n|\n(?=\[)|\n$|$)/gs;
+    // Split the content into lines for better processing
+    const lines = content.split('\n');
     
-    let match;
-    while ((match = serviceRegex.exec(content)) !== null) {
-      const verb = match[1]?.trim() || '';
-      const noun = match[2]?.trim();
-      const datetime = match[3]?.trim() || '';
-      const notes = match[4]?.trim() || '';
-      
-      // Skip services that are already uploaded (contain the (||) marker)
-      if (notes.includes('(||)')) {
+    // Log for debugging
+    console.log(`Processing ${lines.length} lines in ${workOrderNumber}_notes.md`);
+    
+    // Process each line individually
+    for (const line of lines) {
+      // Skip if the line contains the (||) marker (already processed)
+      if (line.includes('(||)')) {
         continue;
       }
       
-      // Add the service to the array
-      services.push({
-        verb,
-        noun,
-        datetime,
-        notes
-      });
+      // Use a simpler regex to match service lines
+      // Format: [Verb] (datetime) => notes or [Verb, Noun] (datetime) => notes
+      const serviceMatch = line.match(/^\s*\[(.*?)(?:,\s*(.*?))?\]\s*\((.*?)\)\s*=>\s*(.*?)\s*$/);
+      
+      if (serviceMatch) {
+        const verb = serviceMatch[1]?.trim() || '';
+        const noun = serviceMatch[2]?.trim();
+        const datetime = serviceMatch[3]?.trim() || '';
+        const notes = serviceMatch[4]?.trim() || '';
+        
+        // Add the service to the array
+        services.push({
+          verb,
+          noun,
+          datetime,
+          notes
+        });
+        
+        // Log for debugging
+        console.log(`Found service: Verb="${verb}", Noun="${noun || ''}", datetime="${datetime}", notes="${notes}"`);
+      }
     }
     
     console.log(chalk.green(`Found ${services.length} services to process in work order ${workOrderNumber}`));
