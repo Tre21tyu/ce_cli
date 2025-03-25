@@ -204,6 +204,38 @@ l
 and enter our time compelted on HH:MM AM/PM
 
 Then, we're going confirm the addition of the service by clicking the "Work Order Form Button" (this is also temporary as we will eventually improve the documentation syntax to determine a way to push a "closed" service to the stack.)
+## Note Formatting
+* TODO:
+#+begin_src claude
+One important part of pushing is adding the notes to the notes section.
+
+The information in the service_stack.json notes prop
+
+{
+...
+"notes": "2025-03-24 23:57\nI documented some things\n\n2025-03-24 23:57\nI analyzed this unit to determine that everything was up to speed."
+}
+
+Needs to be pushed to the notes section which is accessed in from
+
+`http://sqlmedimizer1/MMWeb/App_Pages/WOForm.aspx?wo=1421797&mode=Edit&tab=2`
+
+And pasted.
+
+We also want to modify notes formatting as follows
+
+Let's create #+end_src
+// 1 service
+YYYY-MM-DD: ~Note from service 1 | LP
+2025-03-08: Brought unit down for service | LP
+
+// 2+ services
+
+YYYY-MM-DD: \n~Note from service 1 (HH:MM)\n~Note from service 1 (HH:MM)\n ~Note from service (HH:MM)\n ~Note from service (HH:MM)\n | LP
+How it should appear in the notes text box 
+2025-03-08: Brought unit down for service
+=> Analyzed the unit that I saw for bumps and blemishes
+=> Performed some documentation (HH:MM)
 
 # 4. Verify
 When we click on the "Work Order Form Button", it should take us back to the work order form page

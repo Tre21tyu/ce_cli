@@ -1,5 +1,6 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
+import { openWorkOrder } from './commands/open';
 import { pushStack } from './commands/push';
 import { createLog, listLogs, openLog } from './commands/log';
 import { displayBanner } from './utils/banner';
@@ -97,6 +98,23 @@ export class CeCliRepl {
             const workOrderNumber = args[0];
             const controlNumber = args.length > 1 ? args[1] : undefined;
             const result = await initWorkOrder(workOrderNumber, controlNumber);
+            console.log(chalk.green(result));
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
+      case 'open':
+        if (args.length === 0) {
+          console.log(chalk.red('Error: Work order number is required'));
+          console.log(chalk.yellow('Usage: open <7-digit-work-order-number>'));
+        } else {
+          try {
+            const result = await openWorkOrder(args[0]);
             console.log(chalk.green(result));
           } catch (error) {
             if (error instanceof Error) {
@@ -491,5 +509,6 @@ export class CeCliRepl {
     console.log(chalk.cyan('  list-logs, logs') + ' - List all journal log entries');
     console.log(chalk.cyan('  open-log <date-or-name>') + ' - Open a specific log entry');
     console.log(chalk.cyan('  push-stack, push [--dry-run]') + ' - Push services to Medimizer');
+    console.log(chalk.cyan('  open <wo-number>') + ' - Open a work order in Medimizer (browser stays open)');
   }
 }
