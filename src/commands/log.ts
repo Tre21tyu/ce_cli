@@ -3,7 +3,6 @@ import path from 'path';
 import { promisify } from 'util';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import figlet from 'figlet';
 import { openInNvim } from '../utils/editor';
 
 // Convert callback-based fs functions to Promise-based
@@ -98,28 +97,39 @@ export async function createLog(logName: string): Promise<string> {
       }
     }
     
-    // Generate ASCII art date using figlet
-    const figletDate = figlet.textSync(dateString, {
-      font: 'Slant',
-      horizontalLayout: 'default',
-      verticalLayout: 'default'
-    });
-    
-    // Generate ASCII art for "CE BIO TECH LOG"
-    const logHeader = figlet.textSync('CE BIO TECH LOG', {
-      font: 'Small',
-      horizontalLayout: 'default',
-      verticalLayout: 'default'
-    });
+    // Custom ASCII art header
+    const customHeader = `/*
+                                          oooo   o8o            
+                                          \`888   \`"'            
+ .ooooo.   .ooooo.               .ooooo.   888  oooo            
+d88' \`"Y8 d88' \`88b             d88' \`"Y8  888  \`888            
+888       888ooo888             888        888   888            
+888   .o8 888    .o             888   .o8  888   888            
+\`Y8bod8P' \`Y8bod8P' ooooooooooo \`Y8bod8P' o888o o888o           
+oooooooooo.              o8o  oooo                              
+\`888'   \`Y8b             \`"'  \`888                              
+ 888      888  .oooo.   oooo   888  oooo    ooo                 
+ 888      888 \`P  )88b  \`888   888   \`88.  .8'                  
+ 888      888  .oP"888   888   888    \`88..8'                   
+ 888     d88' d8(  888   888   888     \`888'                    
+o888bood8P'   \`Y888""8o o888o o888o     .8'                     
+ooooo                               .o..P'                      
+\`888'                               \`Y8P'                       
+ 888          .ooooo.   .oooooooo                               
+ 888         d88' \`88b 888' \`88b                                
+ 888         888   888 888   888                                
+ 888       o 888   888 \`88bod8P'                                
+o888ooooood8 \`Y8bod8P' \`8oooooo.                                
+                       d"     YD                                
+                       "Y88888P'                                
+                                                                
+*/`;
     
     // Create template
     const template = `
 =====================================================================
 ---------------------------------------------------------------------
-${logHeader}
-/*
-${figletDate}
-*/
+${customHeader}
      -------------------------------------------------------------    
      |${centerText(`~${dateTimeString}~`, 59)}|
     -------------------------------------------------------------    
