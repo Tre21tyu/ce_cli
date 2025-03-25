@@ -40,8 +40,18 @@ async function pushStack(dryRun = false) {
         // Get browser automation instance
         const browser = browser_enhanced_1.BrowserAutomation.getInstance();
         try {
-            // Initialize browser
+            // Initialize browser and ensure login
             await browser.initialize();
+            // Check if login is needed and perform login
+            console.log(chalk_1.default.yellow('Checking if login is required...'));
+            const isLoginPage = await browser.isLoginPage();
+            if (isLoginPage) {
+                console.log(chalk_1.default.yellow('Login page detected. Logging in...'));
+                await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+            }
+            else {
+                console.log(chalk_1.default.green('Already logged in.'));
+            }
             // Push each work order's services
             let successCount = 0;
             let failureCount = 0;
@@ -138,6 +148,15 @@ async function pushServiceToMedimizer(browser, workOrderNumber, service) {
         console.log(chalk_1.default.yellow(`Navigating to ${serviceAddUrl}...`));
         await browser.page.goto(serviceAddUrl, { waitUntil: 'networkidle2' });
         await browser.takeScreenshot('service_add_page');
+        // Check if we were redirected to login page
+        const isLoginPage = await browser.isLoginPage();
+        if (isLoginPage) {
+            console.log(chalk_1.default.yellow('Redirected to login page. Logging in...'));
+            await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+            // Navigate back to service add page after login
+            await browser.page.goto(serviceAddUrl, { waitUntil: 'networkidle2' });
+            await browser.takeScreenshot('service_add_page_after_login');
+        }
         // Enter Verb Code
         await enterTextWithRetry(browser, '#ContentPlaceHolder1_pagService_cboServiceCode_I', service.verb_code.toString());
         // Enter Noun Code if applicable
@@ -246,6 +265,14 @@ async function verifyServiceAdded(browser, workOrderNumber, service) {
         const currentUrl = browser.page.url();
         if (!currentUrl.includes(`wo=${workOrderNumber}&tab=1`)) {
             await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
+            // Check if we were redirected to login page
+            const isLoginPage = await browser.isLoginPage();
+            if (isLoginPage) {
+                console.log(chalk_1.default.yellow('Redirected to login page during verification. Logging in...'));
+                await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+                // Navigate back to work order page after login
+                await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
+            }
         }
         // Parse datetime for matching
         const [datePart] = parseDatetime(service.datetime);

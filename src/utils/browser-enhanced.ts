@@ -186,7 +186,7 @@ export class BrowserAutomation {
    * 
    * @returns true if on login page, false otherwise
    */
-  private async isLoginPage(): Promise<boolean> {
+  public async isLoginPage(): Promise<boolean> {
     if (!this.page) return false;
     
     try {

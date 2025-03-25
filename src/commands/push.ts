@@ -45,8 +45,19 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
     const browser = BrowserAutomation.getInstance();
     
     try {
-      // Initialize browser
+      // Initialize browser and ensure login
       await browser.initialize();
+      
+      // Check if login is needed and perform login
+      console.log(chalk.yellow('Checking if login is required...'));
+      const isLoginPage = await browser.isLoginPage();
+      
+      if (isLoginPage) {
+        console.log(chalk.yellow('Login page detected. Logging in...'));
+        await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+      } else {
+        console.log(chalk.green('Already logged in.'));
+      }
       
       // Push each work order's services
       let successCount = 0;
@@ -164,6 +175,17 @@ async function pushServiceToMedimizer(
     
     await browser.page.goto(serviceAddUrl, { waitUntil: 'networkidle2' });
     await browser.takeScreenshot('service_add_page');
+    
+    // Check if we were redirected to login page
+    const isLoginPage = await browser.isLoginPage();
+    if (isLoginPage) {
+      console.log(chalk.yellow('Redirected to login page. Logging in...'));
+      await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+      
+      // Navigate back to service add page after login
+      await browser.page.goto(serviceAddUrl, { waitUntil: 'networkidle2' });
+      await browser.takeScreenshot('service_add_page_after_login');
+    }
     
     // Enter Verb Code
     await enterTextWithRetry(
@@ -323,6 +345,16 @@ async function verifyServiceAdded(
     const currentUrl = browser.page.url();
     if (!currentUrl.includes(`wo=${workOrderNumber}&tab=1`)) {
       await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
+      
+      // Check if we were redirected to login page
+      const isLoginPage = await browser.isLoginPage();
+      if (isLoginPage) {
+        console.log(chalk.yellow('Redirected to login page during verification. Logging in...'));
+        await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+        
+        // Navigate back to work order page after login
+        await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
+      }
     }
     
     // Parse datetime for matching
