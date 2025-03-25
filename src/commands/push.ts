@@ -54,7 +54,7 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
       
       if (isLoginPage) {
         console.log(chalk.yellow('Login page detected. Logging in...'));
-        await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
+        await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
       } else {
         console.log(chalk.green('Already logged in.'));
       }
@@ -180,7 +180,7 @@ async function pushServiceToMedimizer(
     const isLoginPage = await browser.isLoginPage();
     if (isLoginPage) {
       console.log(chalk.yellow('Redirected to login page. Logging in...'));
-      await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
+      await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
       
       // Navigate back to service add page after login
       await browser.page.goto(serviceAddUrl, { waitUntil: 'networkidle2' });
@@ -360,7 +360,7 @@ async function verifyServiceAdded(
       const isLoginPage = await browser.isLoginPage();
       if (isLoginPage) {
         console.log(chalk.yellow('Redirected to login page during verification. Logging in...'));
-        await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
+        await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
         
         // Navigate back to work order page after login
         await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
