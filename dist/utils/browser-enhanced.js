@@ -148,7 +148,7 @@ class BrowserAutomation {
             const isLoginPage = await this.isLoginPage();
             if (isLoginPage) {
                 console.log(chalk_1.default.yellow('Login page detected'));
-                await this.login('LPOLLOCK', 'password', 'URMCCEX3');
+                await this.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
                 // Navigate back to the original URL after login
                 await this.page.goto(url, { waitUntil: 'networkidle2' });
             }

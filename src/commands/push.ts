@@ -54,7 +54,7 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
       
       if (isLoginPage) {
         console.log(chalk.yellow('Login page detected. Logging in...'));
-        await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+        await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
       } else {
         console.log(chalk.green('Already logged in.'));
       }
@@ -180,7 +180,7 @@ async function pushServiceToMedimizer(
     const isLoginPage = await browser.isLoginPage();
     if (isLoginPage) {
       console.log(chalk.yellow('Redirected to login page. Logging in...'));
-      await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+      await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
       
       // Navigate back to service add page after login
       await browser.page.goto(serviceAddUrl, { waitUntil: 'networkidle2' });
@@ -194,6 +194,11 @@ async function pushServiceToMedimizer(
       service.verb_code.toString()
     );
     
+    // Wait for dropdown and select first option
+    await new Promise(resolve => setTimeout(resolve, 750));
+    await browser.page.keyboard.press('ArrowDown');
+    await browser.page.keyboard.press('Enter');
+    
     // Enter Noun Code if applicable
     if (service.noun_code !== undefined) {
       await enterTextWithRetry(
@@ -201,6 +206,11 @@ async function pushServiceToMedimizer(
         '#ContentPlaceHolder1_pagService_cboServiceNoun_I',
         service.noun_code.toString()
       );
+      
+      // Wait for dropdown and select first option
+      await new Promise(resolve => setTimeout(resolve, 750));
+      await browser.page.keyboard.press('ArrowDown');
+      await browser.page.keyboard.press('Enter');
     }
     
     // Parse datetime
