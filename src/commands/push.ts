@@ -90,7 +90,7 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
       
       if (isLoginPage) {
         console.log(chalk.yellow('Login page detected. Logging in...'));
-        await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
+        await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
       } else {
         console.log(chalk.green('Already logged in.'));
       }
@@ -216,7 +216,7 @@ async function pushServiceToMedimizer(
     const isLoginPage = await browser.isLoginPage();
     if (isLoginPage) {
       console.log(chalk.yellow('Redirected to login page. Logging in...'));
-      await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
+      await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
       
       // Navigate back to service add page after login
       await browser.page.goto(serviceAddUrl, { waitUntil: 'networkidle2' });
@@ -304,6 +304,18 @@ async function pushServiceToMedimizer(
       console.log(chalk.yellow('Could not find time used field, continuing anyway...'));
       // Take screenshot for debugging
       await browser.takeScreenshot('time_field_not_found');
+    }
+    
+    // Enter Employee (LPOLLOCK) - last field before submission
+    const employeeSelector = '#ContentPlaceHolder1_pagService_cboEmployees_I';
+    try {
+      await enterTextWithRetry(browser, employeeSelector, 'LPOLLOCK');
+      // Press Enter after entering employee
+      await browser.page.keyboard.press('Enter');
+      console.log(chalk.green('Successfully entered employee information'));
+    } catch (error) {
+      console.log(chalk.yellow(`Could not enter employee information: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      // Continue anyway - the field might have a default value
     }
     
     // Screenshot before submission
@@ -449,7 +461,7 @@ async function verifyServiceAdded(
       const isLoginPage = await browser.isLoginPage();
       if (isLoginPage) {
         console.log(chalk.yellow('Redirected to login page during verification. Logging in...'));
-        await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
+        await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
         
         // Navigate back to work order page after login
         await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
