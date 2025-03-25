@@ -47,7 +47,7 @@ async function pushStack(dryRun = false) {
             const isLoginPage = await browser.isLoginPage();
             if (isLoginPage) {
                 console.log(chalk_1.default.yellow('Login page detected. Logging in...'));
-                await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+                await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
             }
             else {
                 console.log(chalk_1.default.green('Already logged in.'));
@@ -152,7 +152,7 @@ async function pushServiceToMedimizer(browser, workOrderNumber, service) {
         const isLoginPage = await browser.isLoginPage();
         if (isLoginPage) {
             console.log(chalk_1.default.yellow('Redirected to login page. Logging in...'));
-            await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+            await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
             // Navigate back to service add page after login
             await browser.page.goto(serviceAddUrl, { waitUntil: 'networkidle2' });
             await browser.takeScreenshot('service_add_page_after_login');
@@ -277,7 +277,7 @@ async function verifyServiceAdded(browser, workOrderNumber, service) {
             const isLoginPage = await browser.isLoginPage();
             if (isLoginPage) {
                 console.log(chalk_1.default.yellow('Redirected to login page during verification. Logging in...'));
-                await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+                await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
                 // Navigate back to work order page after login
                 await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
             }
