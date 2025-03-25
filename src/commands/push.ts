@@ -350,7 +350,7 @@ async function verifyServiceAdded(
       const isLoginPage = await browser.isLoginPage();
       if (isLoginPage) {
         console.log(chalk.yellow('Redirected to login page during verification. Logging in...'));
-        await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+        await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
         
         // Navigate back to work order page after login
         await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
