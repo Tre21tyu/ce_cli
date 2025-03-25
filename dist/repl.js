@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CeCliRepl = void 0;
 const inquirer_1 = __importDefault(require("inquirer"));
 const chalk_1 = __importDefault(require("chalk"));
+const push_1 = require("./commands/push");
 const log_1 = require("./commands/log");
 const banner_1 = require("./utils/banner");
 const init_enhanced_1 = require("./commands/init-enhanced");
@@ -106,6 +107,23 @@ class CeCliRepl {
                     }
                 }
                 break;
+            case 'push-stack':
+            case 'push':
+                try {
+                    // Check for dry-run flag
+                    const dryRun = args.includes('--dry-run') || args.includes('-d');
+                    const result = await (0, push_1.pushStack)(dryRun);
+                    console.log(chalk_1.default.green(result));
+                }
+                catch (error) {
+                    if (error instanceof Error) {
+                        console.log(chalk_1.default.red(error.message));
+                    }
+                    else {
+                        console.log(chalk_1.default.red('An unknown error occurred'));
+                    }
+                }
+                break;
             case 'list':
             case 'ls':
                 try {
@@ -121,8 +139,63 @@ class CeCliRepl {
                     }
                 }
                 break;
-            case 'details':
-            case 'detail':
+            case 'log':
+                if (args.length === 0) {
+                    console.log(chalk_1.default.red('Error: Log name is required'));
+                    console.log(chalk_1.default.yellow('Usage: log <log-name>'));
+                }
+                else {
+                    try {
+                        const logName = args.join(' '); // Combine all args to allow spaces in log name
+                        const result = await (0, log_1.createLog)(logName);
+                        console.log(chalk_1.default.green(result));
+                    }
+                    catch (error) {
+                        if (error instanceof Error) {
+                            console.log(chalk_1.default.red(error.message));
+                        }
+                        else {
+                            console.log(chalk_1.default.red('An unknown error occurred'));
+                        }
+                    }
+                }
+                break;
+            case 'list-logs':
+            case 'logs':
+                try {
+                    const result = await (0, log_1.listLogs)();
+                    console.log(result);
+                }
+                catch (error) {
+                    if (error instanceof Error) {
+                        console.log(chalk_1.default.red(error.message));
+                    }
+                    else {
+                        console.log(chalk_1.default.red('An unknown error occurred'));
+                    }
+                }
+                break;
+            case 'open-log':
+                if (args.length === 0) {
+                    console.log(chalk_1.default.red('Error: Log identifier is required'));
+                    console.log(chalk_1.default.yellow('Usage: open-log <date-or-name>'));
+                }
+                else {
+                    try {
+                        const logIdentifier = args.join(' '); // Combine all args
+                        const result = await (0, log_1.openLog)(logIdentifier);
+                        console.log(chalk_1.default.green(result));
+                    }
+                    catch (error) {
+                        if (error instanceof Error) {
+                            console.log(chalk_1.default.red(error.message));
+                        }
+                        else {
+                            console.log(chalk_1.default.red('An unknown error occurred'));
+                        }
+                    }
+                }
+                break;
             case 'show':
                 if (args.length === 0) {
                     console.log(chalk_1.default.red('Error: Work order number is required'));
@@ -448,6 +521,7 @@ class CeCliRepl {
         console.log(chalk_1.default.cyan('  log <log-name>') + ' - Create a new journal log entry');
         console.log(chalk_1.default.cyan('  list-logs, logs') + ' - List all journal log entries');
         console.log(chalk_1.default.cyan('  open-log <date-or-name>') + ' - Open a specific log entry');
+        console.log(chalk_1.default.cyan('  push-stack, push [--dry-run]') + ' - Push services to Medimizer');
     }
 }
 exports.CeCliRepl = CeCliRepl;

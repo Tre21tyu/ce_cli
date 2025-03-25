@@ -11,7 +11,6 @@ const path_1 = __importDefault(require("path"));
 const util_1 = require("util");
 const inquirer_1 = __importDefault(require("inquirer"));
 const chalk_1 = __importDefault(require("chalk"));
-const figlet_1 = __importDefault(require("figlet"));
 const editor_1 = require("../utils/editor");
 // Convert callback-based fs functions to Promise-based
 /**
@@ -95,31 +94,47 @@ async function createLog(logName) {
                 return 'Operation canceled';
             }
         }
-        // Generate ASCII art date using figlet
-        const figletDate = figlet_1.default.textSync(dateString, {
-            font: 'Slant',
-            horizontalLayout: 'default',
-            verticalLayout: 'default'
-        });
-        // Generate ASCII art for "CE BIO TECH LOG"
-        const logHeader = figlet_1.default.textSync('CE BIO TECH LOG', {
-            font: 'Small',
-            horizontalLayout: 'default',
-            verticalLayout: 'default'
-        });
+        // Custom ASCII art header
+        const customHeader = `/*
+                                          oooo   o8o            
+                                          \`888   \`"'            
+ .ooooo.   .ooooo.               .ooooo.   888  oooo            
+d88' \`"Y8 d88' \`88b             d88' \`"Y8  888  \`888            
+888       888ooo888             888        888   888            
+888   .o8 888    .o             888   .o8  888   888            
+\`Y8bod8P' \`Y8bod8P' ooooooooooo \`Y8bod8P' o888o o888o           
+oooooooooo.              o8o  oooo                              
+\`888'   \`Y8b             \`"'  \`888                              
+ 888      888  .oooo.   oooo   888  oooo    ooo                 
+ 888      888 \`P  )88b  \`888   888   \`88.  .8'                  
+ 888      888  .oP"888   888   888    \`88..8'                   
+ 888     d88' d8(  888   888   888     \`888'                    
+o888bood8P'   \`Y888""8o o888o o888o     .8'                     
+ooooo                               .o..P'                      
+\`888'                               \`Y8P'                       
+ 888          .ooooo.   .oooooooo                               
+ 888         d88' \`88b 888' \`88b                                
+ 888         888   888 888   888                                
+ 888       o 888   888 \`88bod8P'                                
+o888ooooood8 \`Y8bod8P' \`8oooooo.                                
+                       d"     YD                                
+                       "Y88888P'                                
+                                                                
+*/`;
         // Create template
         const template = `
 =====================================================================
 ---------------------------------------------------------------------
-${logHeader}
-/*
-${figletDate}
-*/
+${customHeader}
      -------------------------------------------------------------    
      |${centerText(`~${dateTimeString}~`, 59)}|
     -------------------------------------------------------------    
 =====================================================================
 
+# TODOS
+- [ ]
+
+# Notes
 `;
         // Write template to file
         await writeFile(filePath, template, 'utf8');

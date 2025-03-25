@@ -17,7 +17,7 @@ The key point so far is the note taking system. It will make it so that I, as a 
 [Verb] (10min) (2024-27-12) => (||) 
 [Verb, Noun] (10min) (2024-27-12) => (||) 
 
-# EXPORT (1. Process, 2. Stack)
+# EXPORT (1. Process, 2. Stack 3. Push 4. Verify)
 ---
 ## 1. Process
 ### Base Export format
@@ -58,7 +58,7 @@ The key point so far is the note taking system. It will make it so that I, as a 
 
   const findNounInTable = (nounSide) => {
   // Search for verb_Side in verb_table
-  // if there is an EXACT string match return [verb_keyword, verb_code (int))] (a.k.a the deconstructed row)
+
   // return noun_code
  ]
 // else return 0;
@@ -145,4 +145,69 @@ Notes from service3\n
 | ~LP~
 ...
 '''
+
 }
+
+
+## 3. Push
+Let's first update the json for our services
+ {
+   "workOrderNumber": "0000000" // seven digit number of WO
+   "controlNumber": "00000000",
+   "services": [
+     {
+
+       "datetime": "YYYY-MM-DD HH:MM",
+       "noun": "string",
+       "verb": "string", // Everything right of the comma in the export format
+       "ServiceTimeCalculated": 0 // Time calculated from time management system to be implemented. For now, keep this at 0
+       "pushedToMM": 0 // bool that becomes one if we have pushed this to Medimizer
+     },
+
+   ]
+ }
+
+
+For this step we are going to methodically add services to work orders.
+First, we're going to the following URL
+`http://sqlmedimizer1/MMWeb/App_Pages/ServiceForm.aspx?WO=1421797&Service=add`
+
+Then, We're going to navigate to the Service input field 
+~~~html
+<input class="dxeEditArea_Aqua dxeEditAreaSys      " id="ContentPlaceHolder1_pagService_cboServiceCode_I" name="ctl00$ContentPlaceHolder1$pagService$cboServiceCode" onfocus="aspxEGotFocus('ContentPlaceHolder1_pagService_cboServiceCode')" onblur="aspxELostFocus('ContentPlaceHolder1_pagService_cboServiceCode')" onchange="aspxETextChanged('ContentPlaceHolder1_pagService_cboServiceCode')" onkeydown="aspxEKeyDown('ContentPlaceHolder1_pagService_cboServiceCode', event)" type="text" style="height:15px;" autocomplete="off">
+~~~
+and enter our verb code
+
+Then, if our service has a noun, we'll go to the Service Noun input field
+~~~html
+<input class="dxeEditArea_Aqua dxeEditAreaSys " id="ContentPlaceHolder1_pagService_cboServiceNoun_I" name="ctl00$ContentPlaceHolder1$pagService$cboServiceNoun" onfocus="aspxEGotFocus('ContentPlaceHolder1_pagService_cboServiceNoun')" onblur="aspxELostFocus('ContentPlaceHolder1_pagService_cboServiceNoun')" onchange="aspxETextChanged('ContentPlaceHolder1_pagService_cboServiceNoun')" onkeydown="aspxEKeyDown('ContentPlaceHolder1_pagService_cboServiceNoun', event)" type="text" style="height:15px;" autocomplete="off">
+~~~
+and enter our noun code
+
+Then, we're going to navigate to the Service Date completed on field
+~~~html
+<input class="dxeEditArea_Aqua dxeEditAreaSys  " name="ctl00$ContentPlaceHolder1$pagService$datCompletedOn" onkeyup="aspxEKeyUp('ContentPlaceHolder1_pagService_datCompletedOn', event)" value="3/24/2025" id="ContentPlaceHolder1_pagService_datCompletedOn_I" onchange="aspxETextChanged('ContentPlaceHolder1_pagService_datCompletedOn')" onblur="aspxELostFocus('ContentPlaceHolder1_pagService_datCompletedOn')" onfocus="aspxEGotFocus('ContentPlaceHolder1_pagService_datCompletedOn')" type="text" onkeydown="aspxEKeyDown('ContentPlaceHolder1_pagService_datCompletedOn', event)" style="height:15px;" autocomplete="off">
+~~~
+and enter our date completed code in MM/DD/YYYY
+
+Then, we're going to navigate to the Service time completed on field 
+~~~html
+<input class="dxeEditArea_Aqua dxeEditAreaSys  " name="ctl00$ContentPlaceHolder1$pagService$timCompletedOn" onkeyup="aspxEKeyUp('ContentPlaceHolder1_pagService_timCompletedOn', event)" value="10:03 PM" id="ContentPlaceHolder1_pagService_timCompletedOn_I" onchange="aspxETextChanged('ContentPlaceHolder1_pagService_timCompletedOn')" onblur="aspxELostFocus('ContentPlaceHolder1_pagService_timCompletedOn')" onfocus="aspxEGotFocus('ContentPlaceHolder1_pagService_timCompletedOn')" type="text" onkeypress="aspxEKeyPress('ContentPlaceHolder1_pagService_timCompletedOn', event)" onkeydown="aspxEKeyDown('ContentPlaceHolder1_pagService_timCompletedOn', event)" style="height:15px;" autocomplete="off">
+~~~
+and enter our time compelted on HH:MM AM/PM
+
+Then, we're going to navigate to the Time Used section, and enter 0 (for now. We will be implementing a time tracking system very soon but for now we want to prioritize, safe automated data entry into medimizer.)
+~~~html
+l
+<input class="dxeEditArea_Aqua dxeEditAreaSys  " name="ctl00$ContentPlaceHolder1$pagService$timCompletedOn" onkeyup="aspxEKeyUp('ContentPlaceHolder1_pagService_timCompletedOn', event)" value="10:03 PM" id="ContentPlaceHolder1_pagService_timCompletedOn_I" onchange="aspxETextChanged('ContentPlaceHolder1_pagService_timCompletedOn')" onblur="aspxELostFocus('ContentPlaceHolder1_pagService_timCompletedOn')" onfocus="aspxEGotFocus('ContentPlaceHolder1_pagService_timCompletedOn')" type="text" onkeypress="aspxEKeyPress('ContentPlaceHolder1_pagService_timCompletedOn', event)" onkeydown="aspxEKeyDown('ContentPlaceHolder1_pagService_timCompletedOn', event)" style="height:15px;" autocomplete="off">
+~~~
+and enter our time compelted on HH:MM AM/PM
+
+Then, we're going confirm the addition of the service by clicking the "Work Order Form Button" (this is also temporary as we will eventually improve the documentation syntax to determine a way to push a "closed" service to the stack.)
+
+# 4. Verify
+When we click on the "Work Order Form Button", it should take us back to the work order form page
+`http://sqlmedimizer1/MMWeb/App_Pages/WOForm.aspx?wo=1421797&tab=1`
+We want to verify that the work order was added (date, time, and service) and then set `pushed` to true.
+
+We repeat this process for each service in each work order on the stack until each service has a pushed value of 1

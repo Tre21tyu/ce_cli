@@ -26,6 +26,8 @@ export interface StackableService {
   noun_code?: number;
   datetime: string;
   notes: string;
+  serviceTimeCalculated?: number; // Time calculated from time management system
+  pushedToMM?: number; // Boolean flag (0/1) indicating if pushed to Medimizer
 }
 
 /**

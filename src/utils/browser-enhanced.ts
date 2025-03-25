@@ -39,7 +39,7 @@ export class BrowserAutomation {
   /**
    * Create a timestamped filename for screenshots
    */
-  private getScreenshotPath(prefix: string): string {
+  public getScreenshotPath(prefix: string): string {
     const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '');
     return path.join(this.logsDir, `${prefix}_${timestamp}.png`);
   }
@@ -47,7 +47,7 @@ export class BrowserAutomation {
   /**
    * Take a screenshot for debugging
    */
-  private async takeScreenshot(prefix: string): Promise<string | null> {
+  public async takeScreenshot(prefix: string): Promise<string | null> {
     if (!this.page) return null;
     
     try {
