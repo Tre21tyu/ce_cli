@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CeCliRepl = void 0;
 const inquirer_1 = __importDefault(require("inquirer"));
 const chalk_1 = __importDefault(require("chalk"));
+const log_1 = require("./commands/log");
 const banner_1 = require("./utils/banner");
 const init_enhanced_1 = require("./commands/init-enhanced");
 const list_1 = require("./commands/list");
@@ -131,6 +132,63 @@ class CeCliRepl {
                     try {
                         const result = await (0, details_1.getWorkOrderDetails)(args[0]);
                         console.log(result);
+                    }
+                    catch (error) {
+                        if (error instanceof Error) {
+                            console.log(chalk_1.default.red(error.message));
+                        }
+                        else {
+                            console.log(chalk_1.default.red('An unknown error occurred'));
+                        }
+                    }
+                }
+                break;
+            case 'log':
+                if (args.length === 0) {
+                    console.log(chalk_1.default.red('Error: Log name is required'));
+                    console.log(chalk_1.default.yellow('Usage: log <log-name>'));
+                }
+                else {
+                    try {
+                        const logName = args.join(' '); // Combine all args to allow spaces in log name
+                        const result = await (0, log_1.createLog)(logName);
+                        console.log(chalk_1.default.green(result));
+                    }
+                    catch (error) {
+                        if (error instanceof Error) {
+                            console.log(chalk_1.default.red(error.message));
+                        }
+                        else {
+                            console.log(chalk_1.default.red('An unknown error occurred'));
+                        }
+                    }
+                }
+                break;
+            case 'list-logs':
+            case 'logs':
+                try {
+                    const result = await (0, log_1.listLogs)();
+                    console.log(result);
+                }
+                catch (error) {
+                    if (error instanceof Error) {
+                        console.log(chalk_1.default.red(error.message));
+                    }
+                    else {
+                        console.log(chalk_1.default.red('An unknown error occurred'));
+                    }
+                }
+                break;
+            case 'open-log':
+                if (args.length === 0) {
+                    console.log(chalk_1.default.red('Error: Log identifier is required'));
+                    console.log(chalk_1.default.yellow('Usage: open-log <date-or-name>'));
+                }
+                else {
+                    try {
+                        const logIdentifier = args.join(' '); // Combine all args
+                        const result = await (0, log_1.openLog)(logIdentifier);
+                        console.log(chalk_1.default.green(result));
                     }
                     catch (error) {
                         if (error instanceof Error) {
@@ -387,6 +445,9 @@ class CeCliRepl {
         console.log(chalk_1.default.cyan('  exit') + ' - Exit the application');
         console.log(chalk_1.default.cyan('  stack [wo-number]') + ' - Add a work order to the stack or display the current stack');
         console.log(chalk_1.default.cyan('  clear-stack') + ' - Clear all work orders from the stack');
+        console.log(chalk_1.default.cyan('  log <log-name>') + ' - Create a new journal log entry');
+        console.log(chalk_1.default.cyan('  list-logs, logs') + ' - List all journal log entries');
+        console.log(chalk_1.default.cyan('  open-log <date-or-name>') + ' - Open a specific log entry');
     }
 }
 exports.CeCliRepl = CeCliRepl;

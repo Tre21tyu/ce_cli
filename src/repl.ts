@@ -1,5 +1,6 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
+import { createLog, listLogs, openLog } from './commands/log';
 import { displayBanner } from './utils/banner';
 import { initWorkOrder } from './commands/init-enhanced';
 import { listWorkOrders } from './commands/list';
@@ -88,47 +89,80 @@ export class CeCliRepl {
     switch (command) {
       case 'init':
         if (args.length === 0) {
-        console.log(chalk.red('Error: Work order number is required'));
-        console.log(chalk.yellow('Usage: init <7-digit-work-order-number> [8-digit-control-number]'));
-      } else {
-        try {
-          const workOrderNumber = args[0];
-          const controlNumber = args.length > 1 ? args[1] : undefined;
-          const result = await initWorkOrder(workOrderNumber, controlNumber);
-          console.log(chalk.green(result));
-        } catch (error) {
-          if (error instanceof Error) {
-            console.log(chalk.red(error.message));
-          } else {
-            console.log(chalk.red('An unknown error occurred'));
+          console.log(chalk.red('Error: Work order number is required'));
+          console.log(chalk.yellow('Usage: init <7-digit-work-order-number> [8-digit-control-number]'));
+        } else {
+          try {
+            const workOrderNumber = args[0];
+            const controlNumber = args.length > 1 ? args[1] : undefined;
+            const result = await initWorkOrder(workOrderNumber, controlNumber);
+            console.log(chalk.green(result));
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
           }
         }
-      }
-      break;
+        break;
 
       case 'list':
-        case 'ls':
+      case 'ls':
         try {
-        const result = await listWorkOrders();
-        console.log(result);
-      } catch (error) {
-        if (error instanceof Error) {
-          console.log(chalk.red(error.message));
-        } else {
-          console.log(chalk.red('An unknown error occurred'));
+          const result = await listWorkOrders();
+          console.log(result);
+        } catch (error) {
+          if (error instanceof Error) {
+            console.log(chalk.red(error.message));
+          } else {
+            console.log(chalk.red('An unknown error occurred'));
+          }
         }
-      }
-      break;
+        break;
 
       case 'details':
-        case 'detail':
-        case 'show':
+      case 'detail':
+      case 'show':
         if (args.length === 0) {
-        console.log(chalk.red('Error: Work order number is required'));
-        console.log(chalk.yellow('Usage: details <7-digit-work-order-number>'));
-      } else {
+          console.log(chalk.red('Error: Work order number is required'));
+          console.log(chalk.yellow('Usage: details <7-digit-work-order-number>'));
+        } else {
+          try {
+            const result = await getWorkOrderDetails(args[0]);
+            console.log(result);
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
+      case 'log':
+        if (args.length === 0) {
+          console.log(chalk.red('Error: Log name is required'));
+          console.log(chalk.yellow('Usage: log <log-name>'));
+        } else {
+          try {
+            const logName = args.join(' '); // Combine all args to allow spaces in log name
+            const result = await createLog(logName);
+            console.log(chalk.green(result));
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
+
+      case 'list-logs':
+      case 'logs':
         try {
-          const result = await getWorkOrderDetails(args[0]);
+          const result = await listLogs();
           console.log(result);
         } catch (error) {
           if (error instanceof Error) {
@@ -137,170 +171,107 @@ export class CeCliRepl {
             console.log(chalk.red('An unknown error occurred'));
           }
         }
-      }
-      break;
+        break;
 
+      case 'open-log':
+        if (args.length === 0) {
+          console.log(chalk.red('Error: Log identifier is required'));
+          console.log(chalk.yellow('Usage: open-log <date-or-name>'));
+        } else {
+          try {
+            const logIdentifier = args.join(' '); // Combine all args
+            const result = await openLog(logIdentifier);
+            console.log(chalk.green(result));
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
       case 'service':
-        case 'add-service':
+      case 'add-service':
         if (args.length < 3) {
-        console.log(chalk.red('Error: Required parameters missing'));
-        console.log(chalk.yellow('Usage: service <wo-number> <verb> <noun> [duration]'));
-      } else {
-        try {
-          const workOrderNumber = args[0];
-          const verb = args[1];
-          const noun = args[2];
-          const duration = args.length > 3 ? parseInt(args[3], 10) : 0;
+          console.log(chalk.red('Error: Required parameters missing'));
+          console.log(chalk.yellow('Usage: service <wo-number> <verb> <noun> [duration]'));
+        } else {
+          try {
+            const workOrderNumber = args[0];
+            const verb = args[1];
+            const noun = args[2];
+            const duration = args.length > 3 ? parseInt(args[3], 10) : 0;
 
-          const result = await addService(workOrderNumber, verb, noun, duration);
-          console.log(result);
-        } catch (error) {
-          if (error instanceof Error) {
-            console.log(chalk.red(error.message));
-          } else {
-            console.log(chalk.red('An unknown error occurred'));
+            const result = await addService(workOrderNumber, verb, noun, duration);
+            console.log(result);
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
           }
         }
-      }
-      break;
+        break;
 
       case 'part':
-        case 'add-part':
+      case 'add-part':
         if (args.length < 3) {
-        console.log(chalk.red('Error: Required parameters missing'));
-        console.log(chalk.yellow('Usage: part <wo-number> <service-index> <part-number> [quantity] [cost]'));
-      } else {
-        try {
-          const workOrderNumber = args[0];
-          const serviceIndex = parseInt(args[1], 10);
-          const partNumber = args[2];
-          const quantity = args.length > 3 ? parseInt(args[3], 10) : 1;
-          const cost = args.length > 4 ? parseFloat(args[4]) : undefined;
+          console.log(chalk.red('Error: Required parameters missing'));
+          console.log(chalk.yellow('Usage: part <wo-number> <service-index> <part-number> [quantity] [cost]'));
+        } else {
+          try {
+            const workOrderNumber = args[0];
+            const serviceIndex = parseInt(args[1], 10);
+            const partNumber = args[2];
+            const quantity = args.length > 3 ? parseInt(args[3], 10) : 1;
+            const cost = args.length > 4 ? parseFloat(args[4]) : undefined;
 
-          const result = await addPartToService(workOrderNumber, serviceIndex, partNumber, quantity, cost);
-          console.log(result);
-        } catch (error) {
-          if (error instanceof Error) {
-            console.log(chalk.red(error.message));
-          } else {
-            console.log(chalk.red('An unknown error occurred'));
+            const result = await addPartToService(workOrderNumber, serviceIndex, partNumber, quantity, cost);
+            console.log(result);
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
           }
         }
-      }
-      break;
-// This is the section to add to the processCommand method in repl.ts
-
-case 'stack':
-  if (args.length === 0) {
-    try {
-      // If no arguments, display the stack
-      const result = await displayStack();
-      console.log(result);
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log(chalk.red(error.message));
-      } else {
-        console.log(chalk.red('An unknown error occurred'));
-      }
-    }
-  } else {
-    try {
-      // If argument is provided, stack the work order
-      const result = await stackWorkOrder(args[0]);
-      console.log(chalk.green(result));
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log(chalk.red(error.message));
-      } else {
-        console.log(chalk.red('An unknown error occurred'));
-      }
-    }
-  }
-  break;
-
-case 'clear-stack':
-  try {
-    const result = await clearStack();
-    console.log(chalk.green(result));
-  } catch (error) {
-    if (error instanceof Error) {
-      console.log(chalk.red(error.message));
-    } else {
-      console.log(chalk.red('An unknown error occurred'));
-    }
-  }
-  break;
-      case 'close':
-        if (args.length === 0) {
-        console.log(chalk.red('Error: Work order number is required'));
-        console.log(chalk.yellow('Usage: close <7-digit-work-order-number>'));
-      } else {
-        try {
-          const result = await closeWorkOrder(args[0]);
-          console.log(result);
-        } catch (error) {
-          if (error instanceof Error) {
-            console.log(chalk.red(error.message));
-          } else {
-            console.log(chalk.red('An unknown error occurred'));
-          }
-        }
-      }
-      break;
-
-      case 'note':
-        if (args.length === 0) {
-        console.log(chalk.red('Error: Work order number is required'));
-        console.log(chalk.yellow('Usage: note <7-digit-work-order-number>'));
-      } else {
-        try {
-          const result = await openNotes(args[0]);
-          console.log(chalk.green(result));
-        } catch (error) {
-          if (error instanceof Error) {
-            console.log(chalk.red(error.message));
-          } else {
-            console.log(chalk.red('An unknown error occurred'));
-          }
-        }
-      }
-      break;
-
-      case 'import':
-        if (args.length === 0) {
-        console.log(chalk.red('Error: Work order number is required'));
-        console.log(chalk.yellow('Usage: import <7-digit-work-order-number>'));
-      } else {
-        try {
-          const result = await importNotes(args[0]);
-          console.log(chalk.green(result));
-        } catch (error) {
-          if (error instanceof Error) {
-            console.log(chalk.red(error.message));
-          } else {
-            console.log(chalk.red('An unknown error occurred'));
-          }
-        }
-      }
-      break;
+        break;
+      // This is the section to add to the processCommand method in repl.ts
 
       case 'stack':
         if (args.length === 0) {
-        try {
-          // If no arguments, display the stack
-          const result = await displayStack();
-          console.log(result);
-        } catch (error) {
-          if (error instanceof Error) {
-            console.log(chalk.red(error.message));
-          } else {
-            console.log(chalk.red('An unknown error occurred'));
+          try {
+            // If no arguments, display the stack
+            const result = await displayStack();
+            console.log(result);
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        } else {
+          try {
+            // If argument is provided, stack the work order
+            const result = await stackWorkOrder(args[0]);
+            console.log(chalk.green(result));
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
           }
         }
-      } else {
+        break;
+
+      case 'clear-stack':
         try {
-          // If argument is provided, stack the work order
-          const result = await stackWorkOrder(args[0]);
+          const result = await clearStack();
           console.log(chalk.green(result));
         } catch (error) {
           if (error instanceof Error) {
@@ -309,43 +280,123 @@ case 'clear-stack':
             console.log(chalk.red('An unknown error occurred'));
           }
         }
-      }
-      break;
+        break;
+      case 'close':
+        if (args.length === 0) {
+          console.log(chalk.red('Error: Work order number is required'));
+          console.log(chalk.yellow('Usage: close <7-digit-work-order-number>'));
+        } else {
+          try {
+            const result = await closeWorkOrder(args[0]);
+            console.log(result);
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
+
+      case 'note':
+        if (args.length === 0) {
+          console.log(chalk.red('Error: Work order number is required'));
+          console.log(chalk.yellow('Usage: note <7-digit-work-order-number>'));
+        } else {
+          try {
+            const result = await openNotes(args[0]);
+            console.log(chalk.green(result));
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
+
+      case 'import':
+        if (args.length === 0) {
+          console.log(chalk.red('Error: Work order number is required'));
+          console.log(chalk.yellow('Usage: import <7-digit-work-order-number>'));
+        } else {
+          try {
+            const result = await importNotes(args[0]);
+            console.log(chalk.green(result));
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
+
+      case 'stack':
+        if (args.length === 0) {
+          try {
+            // If no arguments, display the stack
+            const result = await displayStack();
+            console.log(result);
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        } else {
+          try {
+            // If argument is provided, stack the work order
+            const result = await stackWorkOrder(args[0]);
+            console.log(chalk.green(result));
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
 
       case 'clear-stack':
         try {
-        const result = await clearStack();
-        console.log(chalk.green(result));
-      } catch (error) {
-        if (error instanceof Error) {
-          console.log(chalk.red(error.message));
-        } else {
-          console.log(chalk.red('An unknown error occurred'));
+          const result = await clearStack();
+          console.log(chalk.green(result));
+        } catch (error) {
+          if (error instanceof Error) {
+            console.log(chalk.red(error.message));
+          } else {
+            console.log(chalk.red('An unknown error occurred'));
+          }
         }
-      }
-      break;
+        break;
 
       case 'help':
         // This is the section to add to the displayHelp method in repl.ts
         this.displayHelp();
 
-      break;
+        break;
 
       case 'clear':
-        case 'cls':
+      case 'cls':
         console.clear();
-      this.displayWelcomeBanner();
-      break;
+        this.displayWelcomeBanner();
+        break;
 
       case 'exit':
-        case 'quit':
+      case 'quit':
         console.log(chalk.green('Goodbye!'));
-      this.isRunning = false;
-      break;
+        this.isRunning = false;
+        break;
 
       default:
         console.log(chalk.red(`Unknown command: ${command}`));
-      console.log(chalk.yellow('Type "help" to see available commands'));
+        console.log(chalk.yellow('Type "help" to see available commands'));
     }
 
     // Add an empty line for better readability
@@ -357,20 +408,23 @@ case 'clear-stack':
    */
   private displayHelp(): void {
     console.log(chalk.yellow('Available commands:'));
-                             console.log(chalk.cyan('  init <wo-number> [control-number]') + ' - Initialize a new work order');
-                             console.log(chalk.cyan('  list, ls') + ' - List all existing work orders');
-                             console.log(chalk.cyan('  details, show <wo-number>') + ' - Show detailed information for a work order');
-                             console.log(chalk.cyan('  service <wo-number> <verb> <noun> [duration]') + ' - Add a service to a work order');
-                             console.log(chalk.cyan('  part <wo-number> <service-index> <part-number> [quantity] [cost]') + ' - Add a part to a service');
-                             console.log(chalk.cyan('  close <wo-number>') + ' - Close a work order');
-                             console.log(chalk.cyan('  note <wo-number>') + ' - Open notes for a work order');
-                             console.log(chalk.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
-                             console.log(chalk.cyan('  stack [wo-number]') + ' - Stack a work order or display the stack');
-                             console.log(chalk.cyan('  clear-stack') + ' - Clear the stack');
-                             console.log(chalk.cyan('  help') + ' - Display this help information');
-                             console.log(chalk.cyan('  clear') + ' - Clear the screen');
-                             console.log(chalk.cyan('  exit') + ' - Exit the application');
-                             console.log(chalk.cyan('  stack [wo-number]') + ' - Add a work order to the stack or display the current stack');
-                             console.log(chalk.cyan('  clear-stack') + ' - Clear all work orders from the stack');
+    console.log(chalk.cyan('  init <wo-number> [control-number]') + ' - Initialize a new work order');
+    console.log(chalk.cyan('  list, ls') + ' - List all existing work orders');
+    console.log(chalk.cyan('  details, show <wo-number>') + ' - Show detailed information for a work order');
+    console.log(chalk.cyan('  service <wo-number> <verb> <noun> [duration]') + ' - Add a service to a work order');
+    console.log(chalk.cyan('  part <wo-number> <service-index> <part-number> [quantity] [cost]') + ' - Add a part to a service');
+    console.log(chalk.cyan('  close <wo-number>') + ' - Close a work order');
+    console.log(chalk.cyan('  note <wo-number>') + ' - Open notes for a work order');
+    console.log(chalk.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
+    console.log(chalk.cyan('  stack [wo-number]') + ' - Stack a work order or display the stack');
+    console.log(chalk.cyan('  clear-stack') + ' - Clear the stack');
+    console.log(chalk.cyan('  help') + ' - Display this help information');
+    console.log(chalk.cyan('  clear') + ' - Clear the screen');
+    console.log(chalk.cyan('  exit') + ' - Exit the application');
+    console.log(chalk.cyan('  stack [wo-number]') + ' - Add a work order to the stack or display the current stack');
+    console.log(chalk.cyan('  clear-stack') + ' - Clear all work orders from the stack');
+    console.log(chalk.cyan('  log <log-name>') + ' - Create a new journal log entry');
+    console.log(chalk.cyan('  list-logs, logs') + ' - List all journal log entries');
+    console.log(chalk.cyan('  open-log <date-or-name>') + ' - Open a specific log entry');
   }
 }
