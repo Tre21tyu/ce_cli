@@ -137,31 +137,115 @@ ${servicesFromMM.join('\n')}
 /**
  * Parse services from notes
  * Looks for patterns like [Verb, Noun] => Description
+ * And detects closing token =| if present
  * 
  * @param notes - Notes to parse
- * @returns An array of parsed services
+ * @returns An object with parsed services and closing flag
  */
-export function parseServicesFromNotes(notes: string): Array<{verb: string, noun: string, description: string}> {
+export function parseServicesFromNotes(notes: string): {
+  services: Array<{verb: string, noun: string, description: string}>,
+  shouldCloseWorkOrder: boolean
+} {
   const services: Array<{verb: string, noun: string, description: string}> = [];
+  let shouldCloseWorkOrder = false;
   
   // Regular expression to match service patterns
-  // Matches [Verb, Noun] => Description or [Verb] => Description
-  const serviceRegex = /\[(.*?)(?:,\s*(.*?))?\]\s*=>\s*(.*?)(?:\n|$)/g;
+  // Format: [Verb, Noun] => Description or [Verb] => Description
+  const serviceRegex = /^\s*\[(.*?)(?:,\s*(.*?))?\]\s*\((.*?)\)\s*=>\s*(.*?)\s*$/gm;
   
+  // Store line numbers for validation
+  const serviceLineNumbers: number[] = [];
+  const lines = notes.split('\n');
+  
+  // First, find all service patterns and their line numbers
   let match;
   while ((match = serviceRegex.exec(notes)) !== null) {
     const verb = match[1]?.trim() || '';
     const noun = match[2]?.trim() || '';
-    const description = match[3]?.trim() || '';
+    const datetime = match[3]?.trim() || '';
+    const description = match[4]?.trim() || '';
+    
+    // Get line number for this match
+    const matchStart = match.index;
+    let lineNumber = 0;
+    let charCount = 0;
+    
+    for (let i = 0; i < lines.length; i++) {
+      charCount += lines[i].length + 1; // +1 for newline
+      if (charCount > matchStart) {
+        lineNumber = i;
+        break;
+      }
+    }
+    
+    serviceLineNumbers.push(lineNumber);
     
     if (verb) {
       services.push({ verb, noun, description });
     }
   }
   
-  return services;
+  // Now check if the last service has the closing token
+  if (services.length > 0) {
+    const lastService = services[services.length - 1];
+    const lastServiceLineNumber = serviceLineNumbers[serviceLineNumbers.length - 1];
+    
+    // Check if description ends with =|
+    if (lastService.description.trim().endsWith('=|')) {
+      // Remove the =| token from the description
+      lastService.description = lastService.description.trim().replace(/\s*=\|\s*$/, '');
+      shouldCloseWorkOrder = true;
+      
+      // Validate no services after this one
+      for (let i = 0; i < serviceLineNumbers.length - 1; i++) {
+        const serviceDesc = services[i].description;
+        if (serviceDesc.includes('=|')) {
+          throw new Error('Closing token =| can only appear in the last service entry');
+        }
+      }
+    }
+  }
+  
+  return { services, shouldCloseWorkOrder };
 }
-
+/**
+ * Extract closing token from service description
+ * 
+ * @param description - Service description text
+ * @returns Cleaned description without token and whether token was found
+ */
+function extractClosingToken(description: string): { text: string, hasClosingToken: boolean } {
+  const trimmedDesc = description.trim();
+  const hasClosingToken = trimmedDesc.endsWith('=|');
+  
+  // Remove token if present
+  const cleanedText = hasClosingToken 
+    ? trimmedDesc.substring(0, trimmedDesc.length - 2).trim() 
+    : trimmedDesc;
+    
+  return { text: cleanedText, hasClosingToken };
+}
+/**
+ * Validate proper use of closing token in services
+ * 
+ * @param services - Array of parsed services
+ * @throws Error if token is used incorrectly
+ * @returns Whether work order should be closed
+ */
+function validateClosingToken(services: Array<{verb: string, noun: string, description: string}>): boolean {
+  if (services.length === 0) return false;
+  
+  // Check if any non-last service has the closing token
+  for (let i = 0; i < services.length - 1; i++) {
+    if (services[i].description.includes('=|')) {
+      throw new Error('Closing token =| can only appear in the last service entry');
+    }
+  }
+  
+  // Check if last service has the token
+  const lastService = services[services.length - 1];
+  return lastService.description.trim().endsWith('=|');
+}
 /**
  * Validate services against database
  * Checks if verbs and nouns exist in the database

@@ -8,6 +8,19 @@ import { CodeLookup } from './code-lookup';
 const readFile = promisify(fs.readFile);
 const exists = promisify(fs.exists);
 
+///////////////////////////** INTERFACES **/////////////////////////////////
+
+/**
+ * Interface for a work order in the stack
+ */
+export interface StackedWorkOrder {
+  workOrderNumber: string;
+  controlNumber?: string;
+  services: StackableService[];
+  notes: string;
+  shouldCloseOnPush?: boolean; // New flag to indicate if work order should be closed when pushed
+}
+
 /**
  * Interface for a parsed service from a markdown file
  */
@@ -16,6 +29,7 @@ export interface ParsedService {
   noun?: string;
   datetime: string;
   notes: string;
+  hasClosingToken?: boolean; // New flag to track if this service has the closing token
 }
 
 /**
@@ -28,15 +42,19 @@ export interface StackableService {
   notes: string;
   serviceTimeCalculated?: number; // Time calculated from time management system
   pushedToMM?: number; // Boolean flag (0/1) indicating if pushed to Medimizer
+  hasClosingToken?: boolean; // New flag to track if this service has the closing token
 }
 
 /**
  * Parse service entries from a work order markdown file
  * 
  * @param workOrderNumber - The work order number
- * @returns An array of parsed services
+ * @returns An object with parsed services and closing flag
  */
-export async function parseServices(workOrderNumber: string): Promise<ParsedService[]> {
+export async function parseServices(workOrderNumber: string): Promise<{
+  services: ParsedService[],
+  shouldCloseWorkOrder: boolean
+}> {
   try {
     // Build the path to the work order's markdown file
     const mdFilePath = path.join(
@@ -56,6 +74,7 @@ export async function parseServices(workOrderNumber: string): Promise<ParsedServ
 
     // Extract services that don't have the (||) marker
     const services: ParsedService[] = [];
+    let shouldCloseWorkOrder = false;
     
     // Split the content into lines for better processing
     const lines = content.split('\n');
@@ -78,24 +97,47 @@ export async function parseServices(workOrderNumber: string): Promise<ParsedServ
         const verb = serviceMatch[1]?.trim() || '';
         const noun = serviceMatch[2]?.trim();
         const datetime = serviceMatch[3]?.trim() || '';
-        const notes = serviceMatch[4]?.trim() || '';
+        let notes = serviceMatch[4]?.trim() || '';
+        
+        // Check for closing token
+        const hasClosingToken = notes.endsWith('=|');
+        if (hasClosingToken) {
+          // Remove token from notes
+          notes = notes.substring(0, notes.length - 2).trim();
+          
+          // Only the last service should have the closing token
+          if (shouldCloseWorkOrder) {
+            throw new Error('Closing token =| can only appear once in the file');
+          }
+          
+          shouldCloseWorkOrder = true;
+        }
         
         // Add the service to the array
         services.push({
           verb,
           noun,
           datetime,
-          notes
+          notes,
+          hasClosingToken
         });
         
         // Log for debugging
-        console.log(`Found service: Verb="${verb}", Noun="${noun || ''}", datetime="${datetime}", notes="${notes}"`);
+        console.log(`Found service: Verb="${verb}", Noun="${noun || ''}", datetime="${datetime}", notes="${notes}"${hasClosingToken ? ' (will close work order)' : ''}`);
       }
     }
     
-    console.log(chalk.green(`Found ${services.length} services to process in work order ${workOrderNumber}`));
+    // Validate closing token only appears in the last service
+    if (shouldCloseWorkOrder && services.length > 0) {
+      const lastService = services[services.length - 1];
+      if (!lastService.hasClosingToken) {
+        throw new Error('Closing token =| can only appear in the last service entry');
+      }
+    }
     
-    return services;
+    console.log(chalk.green(`Found ${services.length} services to process in work order ${workOrderNumber}${shouldCloseWorkOrder ? ' (will close work order)' : ''}`));
+    
+    return { services, shouldCloseWorkOrder };
   } catch (error) {
     console.error(chalk.red(`Error parsing services for work order ${workOrderNumber}:`), error);
     throw new Error(`Failed to parse services for work order ${workOrderNumber}`);
@@ -109,16 +151,20 @@ export async function parseServices(workOrderNumber: string): Promise<ParsedServ
  * @returns An array of stackable services with codes
  */
 export async function convertToStackableServices(
-  services: ParsedService[]
-): Promise<StackableService[]> {
+  parsedServices: ParsedService[]
+): Promise<{ 
+  services: StackableService[],
+  shouldCloseWorkOrder: boolean 
+}> {
   try {
     // Initialize the code lookup if needed
     const codeLookup = CodeLookup.getInstance();
     await codeLookup.initialize();
     
     const stackableServices: StackableService[] = [];
+    let shouldCloseWorkOrder = false;
     
-    for (const service of services) {
+    for (const service of parsedServices) {
       // Look up the verb code
       const verb = codeLookup.findVerb(service.verb);
       if (!verb) {
@@ -130,8 +176,14 @@ export async function convertToStackableServices(
       const stackableService: StackableService = {
         verb_code: verb.code,
         datetime: service.datetime,
-        notes: service.notes
+        notes: service.notes,
+        hasClosingToken: service.hasClosingToken
       };
+      
+      // Track closing flag
+      if (service.hasClosingToken) {
+        shouldCloseWorkOrder = true;
+      }
       
       // If the verb has a noun and a noun was provided, look it up
       if (verb.hasNoun && service.noun) {
@@ -148,9 +200,9 @@ export async function convertToStackableServices(
       stackableServices.push(stackableService);
     }
     
-    console.log(chalk.green(`Converted ${stackableServices.length} services to stackable format`));
+    console.log(chalk.green(`Converted ${stackableServices.length} services to stackable format${shouldCloseWorkOrder ? ' (will close work order)' : ''}`));
     
-    return stackableServices;
+    return { services: stackableServices, shouldCloseWorkOrder };
   } catch (error) {
     console.error(chalk.red('Error converting to stackable services:'), error);
     throw new Error('Failed to convert services to stackable format');
