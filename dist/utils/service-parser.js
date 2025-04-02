@@ -33,9 +33,15 @@ async function parseServices(workOrderNumber) {
         let startTime = null;
         const startTimeMatch = content.match(/START\/RESUME TIME:\s*(\d{1,2}:\d{1,2}:\d{1,2})/);
         if (startTimeMatch && startTimeMatch[1]) {
+            // Look for date in the imported section
+            const importedDateMatch = content.match(/IMPORTED FROM MM ON (\d{4}-\d{2}-\d{2})/);
+            let startDate = new Date().toISOString().split('T')[0]; // Default to today
+            if (importedDateMatch && importedDateMatch[1]) {
+                startDate = importedDateMatch[1]; // Use the imported date if available
+            }
             // Create a date object for the start time
-            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-            startTime = new Date(`${today}T${startTimeMatch[1]}`);
+            startTime = new Date(`${startDate}T${startTimeMatch[1]}`);
+            console.log(chalk_1.default.yellow(`Using start time: ${startTime.toISOString()}`));
         }
         // Extract services that don't have the (||) marker
         const services = [];
@@ -64,9 +70,26 @@ async function parseServices(workOrderNumber) {
                 // Calculate minutes since previous timestamp/start time
                 let calculatedMinutes = 0;
                 if (previousTimestamp && !isNaN(timestamp.getTime())) {
-                    // Calculate minutes difference
-                    calculatedMinutes = Math.round((timestamp.getTime() - previousTimestamp.getTime()) / 60000);
+                    // When service time is earlier than start time, use a default value instead of negative time
+                    if (timestamp.getTime() < previousTimestamp.getTime()) {
+                        console.log(chalk_1.default.yellow(`Warning: Service timestamp (${timestamp.toISOString()}) is earlier than start time (${previousTimestamp.toISOString()})`));
+                        // Default to a reasonable time if timestamp is out of order (15 minutes)
+                        calculatedMinutes = 15;
+                    }
+                    else {
+                        // Calculate minutes difference
+                        calculatedMinutes = Math.round((timestamp.getTime() - previousTimestamp.getTime()) / 60000);
+                    }
+                    // Set a minimum time for any service (5 minutes)
+                    if (calculatedMinutes < 5) {
+                        calculatedMinutes = 5;
+                    }
                     // Update previous timestamp for next calculation
+                    previousTimestamp = timestamp;
+                }
+                else if (!previousTimestamp) {
+                    // If no previous timestamp, set a default time (15 minutes)
+                    calculatedMinutes = 15;
                     previousTimestamp = timestamp;
                 }
                 // Add the service to the array

@@ -91,8 +91,39 @@ class DayTrackerManager {
             const now = new Date();
             const endTime = now.toLocaleTimeString();
             // Calculate day duration in minutes
-            const startTime = new Date(`${this.currentDay.date}T${this.currentDay.day_begin.split(' ')[1]}`);
-            const totalMinutes = Math.round((now.getTime() - startTime.getTime()) / 60000);
+            let totalMinutes = 0;
+            try {
+                // Parse start date and time properly
+                const startParts = this.currentDay.day_begin.split(' ');
+                const startDate = startParts[0]; // YYYY-MM-DD
+                const startTimeStr = startParts[1]; // HH:MM:SS
+                // Create proper Date objects
+                const startDateTime = new Date(`${startDate}T${this.formatTimeForISO(startTimeStr)}`);
+                // Make sure we have valid dates before calculating
+                if (!isNaN(startDateTime.getTime()) && !isNaN(now.getTime())) {
+                    // Calculate minutes between start and now
+                    totalMinutes = Math.round((now.getTime() - startDateTime.getTime()) / 60000);
+                    // Ensure we never have negative minutes
+                    if (totalMinutes < 0) {
+                        console.log(chalk_1.default.yellow(`Warning: Calculated negative duration (${totalMinutes} minutes). Using absolute value.`));
+                        totalMinutes = Math.abs(totalMinutes);
+                    }
+                    // If minutes are still 0, set a minimum of 1 minute
+                    if (totalMinutes === 0) {
+                        totalMinutes = 1;
+                    }
+                }
+                else {
+                    // If we have invalid dates, use a default
+                    console.log(chalk_1.default.yellow('Warning: Invalid date/time calculation. Using default of 60 minutes.'));
+                    totalMinutes = 60;
+                }
+            }
+            catch (error) {
+                console.log(chalk_1.default.yellow(`Error calculating minutes: ${error instanceof Error ? error.message : 'Unknown error'}`));
+                console.log(chalk_1.default.yellow('Using default of 60 minutes'));
+                totalMinutes = 60;
+            }
             // Update day tracker
             this.currentDay.day_end = `${this.currentDay.date} ${endTime}`;
             this.currentDay.total_day_minutes = totalMinutes;
@@ -117,6 +148,36 @@ Work orders processed: ${this.currentDay.work_orders.length}
                 throw new Error('Failed to end day: Unknown error');
             }
         }
+    }
+    /**
+     * Format time string (HH:MM:SS or HH:MM AM/PM) to ISO format (HH:MM:SS)
+     *
+     * @param timeStr - Time string to format
+     * @returns Formatted time string in ISO format (HH:MM:SS)
+     */
+    formatTimeForISO(timeStr) {
+        // Check if time is in AM/PM format
+        if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+            // Convert to 24-hour format
+            const [timePart, period] = timeStr.split(' ');
+            const [hours, minutes, seconds = '00'] = timePart.split(':');
+            let hour = parseInt(hours, 10);
+            // Convert 12-hour to 24-hour
+            if (period.toLowerCase() === 'pm' && hour < 12) {
+                hour += 12;
+            }
+            else if (period.toLowerCase() === 'am' && hour === 12) {
+                hour = 0;
+            }
+            // Format as HH:MM:SS
+            return `${hour.toString().padStart(2, '0')}:${minutes}:${seconds}`;
+        }
+        // If already in 24-hour format, make sure it has seconds
+        const parts = timeStr.split(':');
+        if (parts.length === 2) {
+            return `${parts[0]}:${parts[1]}:00`;
+        }
+        return timeStr;
     }
     /**
      * Get the current day tracker
@@ -180,9 +241,37 @@ Work orders processed: ${this.currentDay.work_orders.length}
             let totalMinutes = this.currentDay.total_day_minutes;
             let statusMessage = '';
             if (!this.currentDay.day_end) {
-                const now = new Date();
-                const startTime = new Date(`${this.currentDay.date}T${this.currentDay.day_begin.split(' ')[1]}`);
-                totalMinutes = Math.round((now.getTime() - startTime.getTime()) / 60000);
+                try {
+                    // Parse the start date and time
+                    const startParts = this.currentDay.day_begin.split(' ');
+                    const startDate = startParts[0]; // YYYY-MM-DD
+                    const startTimeStr = startParts[1]; // HH:MM:SS
+                    // Create proper Date objects
+                    const startDateTime = new Date(`${startDate}T${this.formatTimeForISO(startTimeStr)}`);
+                    const now = new Date();
+                    // Calculate current running time
+                    if (!isNaN(startDateTime.getTime()) && !isNaN(now.getTime())) {
+                        totalMinutes = Math.round((now.getTime() - startDateTime.getTime()) / 60000);
+                        // Ensure we never have negative minutes
+                        if (totalMinutes < 0) {
+                            console.log(chalk_1.default.yellow(`Warning: Calculated negative duration (${totalMinutes} minutes). Using absolute value.`));
+                            totalMinutes = Math.abs(totalMinutes);
+                        }
+                        // If minutes are still 0, set a minimum of 1 minute
+                        if (totalMinutes === 0) {
+                            totalMinutes = 1;
+                        }
+                    }
+                    else {
+                        // Default for invalid dates
+                        totalMinutes = 60;
+                    }
+                }
+                catch (error) {
+                    console.log(chalk_1.default.yellow(`Error calculating minutes: ${error instanceof Error ? error.message : 'Unknown error'}`));
+                    // Use a default value
+                    totalMinutes = 60;
+                }
                 statusMessage = chalk_1.default.green('Day in progress');
             }
             else {
@@ -190,6 +279,10 @@ Work orders processed: ${this.currentDay.work_orders.length}
             }
             // Calculate service percentage
             const servicePercentage = Math.round((this.currentDay.total_service_minutes / totalMinutes) * 100) || 0;
+            // Format work orders list
+            const workOrdersList = this.currentDay.work_orders.length > 0
+                ? this.currentDay.work_orders.join(', ')
+                : 'None';
             // Format and return summary
             return `
 ${statusMessage}
@@ -199,7 +292,7 @@ ${this.currentDay.day_end ? `Ended: ${this.currentDay.day_end}` : ''}
 Total duration: ${totalMinutes} minutes
 Service time logged: ${this.currentDay.total_service_minutes} minutes
 Productivity: ${servicePercentage}%
-Work orders processed: ${this.currentDay.work_orders.join(', ')}
+Work orders processed: ${workOrdersList}
 `;
         }
         catch (error) {
