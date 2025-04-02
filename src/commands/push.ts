@@ -1,46 +1,11 @@
-/**
- * Compare time values to see if they're equivalent, ignoring formatting differences
- * 
- * @param actual - Actual time value from the form
- * @param expected - Expected time value
- * @returns True if time values are equivalent
- */
-function compareTimeValues(actual: string, expected: string): boolean {
-  try {
-    // Extract numbers and AM/PM from both strings
-    const actualNumbers = actual.replace(/[^0-9]/g, '');
-    const expectedNumbers = expected.replace(/[^0-9]/g, '');
-    
-    const actualHasAM = actual.toLowerCase().includes('am');
-    const actualHasPM = actual.toLowerCase().includes('pm');
-    const expectedHasAM = expected.toLowerCase().includes('am');
-    const expectedHasPM = expected.toLowerCase().includes('pm');
-    
-    // Special case - compact format might be missing leading zeros
-    if (expected.match(/^\d{3,4}(am|pm)$/i)) {
-      // For compact format like "800am" or "1118pm"
-      const numbers = expected.replace(/[^0-9]/g, '');
-      if (numbers === actualNumbers) {
-        return (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
-      }
-    }
-    
-    // Check if the numeric parts match and AM/PM matches
-    const numbersMatch = actualNumbers.includes(expectedNumbers) || expectedNumbers.includes(actualNumbers);
-    const amPmMatch = (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
-    
-    return numbersMatch && amPmMatch;
-  } catch (error) {
-    console.log(chalk.yellow(`Error comparing time values: ${error instanceof Error ? error.message : 'Unknown error'}`));
-    return false;
-  }
-}import chalk from 'chalk';
+import chalk from 'chalk';
 import { StackManager } from '../utils/stack-manager';
 import { BrowserAutomation } from '../utils/browser-enhanced';
 import { StackableService } from '../utils/service-parser';
+import { DayTrackerManager } from '../utils/day-tracker';
 
 /**
- * Push services from the stack to Medimizer
+ * Push services from the stack to Medimizer with time tracking
  * 
  * @param dryRun - If true, simulate without actually pushing to Medimizer
  * @returns A promise that resolves to a success message
@@ -60,17 +25,30 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
     // Count total services that need to be pushed
     let totalServices = 0;
     let unpushedServices = 0;
+    let totalMinutes = 0;
     
     stack.forEach(wo => {
       totalServices += wo.services.length;
       unpushedServices += wo.services.filter(service => !service.pushedToMM).length;
+      // Sum up minutes for unpushed services
+      wo.services.filter(service => !service.pushedToMM).forEach(service => {
+        totalMinutes += service.calculatedMinutes || 0;
+      });
     });
     
     if (unpushedServices === 0) {
       return 'All services in the stack have already been pushed to Medimizer.';
     }
     
-    console.log(chalk.yellow(`Preparing to push ${unpushedServices} service(s) to Medimizer...`));
+    console.log(chalk.yellow(`Preparing to push ${unpushedServices} service(s) totaling ${totalMinutes} minutes to Medimizer...`));
+    
+    // Check if there's an active day
+    const dayTracker = DayTrackerManager.getInstance();
+    const currentDay = await dayTracker.getCurrentDay();
+    
+    if (!currentDay || currentDay.day_end) {
+      console.log(chalk.yellow(`Warning: No active day found. Service time will not be tracked in day statistics.`));
+    }
     
     if (dryRun) {
       console.log(chalk.yellow('DRY RUN: No actual changes will be made to Medimizer.'));
@@ -98,6 +76,7 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
       // Push each work order's services
       let successCount = 0;
       let failureCount = 0;
+      let pushedMinutes = 0;
       
       for (const workOrder of stack) {
         console.log(chalk.cyan(`Processing work order ${workOrder.workOrderNumber}...`));
@@ -112,17 +91,18 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
         
         for (let i = 0; i < unpushedServices.length; i++) {
           const service = unpushedServices[i];
-          console.log(chalk.yellow(`Pushing service ${i + 1}/${unpushedServices.length}: Verb ${service.verb_code}${service.noun_code ? `, Noun ${service.noun_code}` : ''}`));
+          console.log(chalk.yellow(`Pushing service ${i + 1}/${unpushedServices.length}: Verb ${service.verb_code}${service.noun_code ? `, Noun ${service.noun_code}` : ''} (${service.calculatedMinutes} minutes)`));
           
           try {
-            // Push the service to Medimizer
+            // Push the service to Medimizer with time allocation
             await pushServiceToMedimizer(browser, workOrder.workOrderNumber, service);
             
             // Mark service as pushed
             service.pushedToMM = 1;
+            pushedMinutes += service.calculatedMinutes || 0;
             successCount++;
             
-            console.log(chalk.green(`Service pushed successfully.`));
+            console.log(chalk.green(`Service pushed successfully (${service.calculatedMinutes} minutes).`));
           } catch (error) {
             console.error(chalk.red(`Failed to push service: ${error instanceof Error ? error.message : 'Unknown error'}`));
             failureCount++;
@@ -137,7 +117,7 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
       await browser.close();
       
       // Return summary
-      return `Push completed. ${successCount} service(s) pushed successfully, ${failureCount} failed.`;
+      return `Push completed. ${successCount} service(s) pushed successfully (${pushedMinutes} minutes), ${failureCount} failed.`;
     } catch (error) {
       // Make sure to close the browser even if there's an error
       try {
@@ -165,6 +145,7 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
  */
 async function simulatePush(stack: any[]): Promise<string> {
   let totalServices = 0;
+  let totalMinutes = 0;
   
   for (const workOrder of stack) {
     const unpushedServices = workOrder.services.filter((service: any) => !service.pushedToMM);
@@ -172,20 +153,27 @@ async function simulatePush(stack: any[]): Promise<string> {
     if (unpushedServices.length > 0) {
       console.log(chalk.cyan(`Would push ${unpushedServices.length} service(s) for work order ${workOrder.workOrderNumber}:`));
       
+      let workOrderMinutes = 0;
       unpushedServices.forEach((service: any, index: number) => {
         // Parse datetime into MM/DD/YYYY and HH:MM AM/PM format
         const [datePart, timePart] = parseDatetime(service.datetime);
         
         console.log(chalk.white(`  ${index + 1}. Verb: ${service.verb_code}${service.noun_code ? `, Noun: ${service.noun_code}` : ''}`));
         console.log(chalk.white(`     Date: ${datePart}, Time: ${timePart}`));
+        console.log(chalk.white(`     Duration: ${service.calculatedMinutes} minutes`));
         console.log(chalk.white(`     Notes: ${service.notes.substring(0, 50)}${service.notes.length > 50 ? '...' : ''}`));
+        
+        workOrderMinutes += service.calculatedMinutes || 0;
       });
       
+      console.log(chalk.cyan(`  Total for WO ${workOrder.workOrderNumber}: ${workOrderMinutes} minutes`));
+      
       totalServices += unpushedServices.length;
+      totalMinutes += workOrderMinutes;
     }
   }
   
-  return `Simulation complete. Would push ${totalServices} service(s) to Medimizer.`;
+  return `Simulation complete. Would push ${totalServices} service(s) with ${totalMinutes} total minutes to Medimizer.`;
 }
 
 /**
@@ -258,6 +246,7 @@ async function pushServiceToMedimizer(
       '#ContentPlaceHolder1_pagService_datCompletedOn_I',
       datePart
     );
+    
     // Press Enter after entering date
     await browser.page.keyboard.press('Enter');
     
@@ -269,10 +258,13 @@ async function pushServiceToMedimizer(
       '#ContentPlaceHolder1_pagService_timCompletedOn_I',
       timeFormatted
     );
+    
     // Press Enter after entering time
     await browser.page.keyboard.press('Enter');
     
-    // Enter Time Used (0 for now)
+    // Enter Time Used from service.calculatedMinutes
+    console.log(chalk.yellow(`Setting service time to ${service.calculatedMinutes} minutes`));
+    
     // Try multiple possible selectors for the time used field
     const timeUsedSelectors = [
       '#ContentPlaceHolder1_pagService_meTime_I',
@@ -289,7 +281,7 @@ async function pushServiceToMedimizer(
         }).then(() => true).catch(() => false);
         
         if (exists) {
-          await enterTextWithRetry(browser, selector, '0');
+          await enterTextWithRetry(browser, selector, service.calculatedMinutes.toString());
           // Press Enter after entering time used
           await browser.page.keyboard.press('Enter');
           timeFieldFound = true;
@@ -318,6 +310,22 @@ async function pushServiceToMedimizer(
       // Continue anyway - the field might have a default value
     }
     
+    // Add notes
+    if (service.notes) {
+      try {
+        // Look for notes textarea
+        const notesSelector = '#ContentPlaceHolder1_pagService_memNotes_I';
+        if (await browser.page.waitForSelector(notesSelector, { visible: true, timeout: 5000 }).then(() => true).catch(() => false)) {
+          await browser.page.click(notesSelector, { clickCount: 3 });
+          await browser.page.type(notesSelector, service.notes);
+          console.log(chalk.green('Successfully entered service notes'));
+        }
+      } catch (error) {
+        console.log(chalk.yellow(`Could not enter notes: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        // Continue anyway - notes are optional
+      }
+    }
+    
     // Screenshot before submission
     await browser.page.screenshot({ path: browser.getScreenshotPath('before_service_submit'), fullPage: true });
     
@@ -341,6 +349,15 @@ async function pushServiceToMedimizer(
     
     if (!wasAdded) {
       throw new Error('Service was not successfully added to Medimizer');
+    }
+    
+    // Update day tracker with service minutes
+    const dayTracker = DayTrackerManager.getInstance();
+    const currentDay = await dayTracker.getCurrentDay();
+    
+    if (currentDay && !currentDay.day_end) {
+      // No need to add service minutes here, as they've already been added when stacking
+      console.log(chalk.green(`Service time (${service.calculatedMinutes} minutes) already tracked in day stats`));
     }
   } catch (error) {
     await browser.takeScreenshot('service_push_error');
@@ -481,7 +498,7 @@ async function verifyServiceAdded(
     await browser.takeScreenshot('service_verification');
     
     // Look for the service in the table
-    const serviceFound = await browser.page.evaluate((verbCode, nounCode, dateStr) => {
+    const serviceFound = await browser.page.evaluate((verbCode, nounCode, dateStr, minutes) => {
       // Helper function to check if a cell contains text
       const cellContains = (cell: Element, text: string) => {
         return cell.textContent?.includes(text) || false;
@@ -490,17 +507,22 @@ async function verifyServiceAdded(
       // Get all service rows
       const cells = Array.from(document.querySelectorAll('td.dxgv'));
       
-      // Look for cells that contain both the verb code and the date
+      // Look for cells that contain the verb code, date, and minutes
       for (const cell of cells) {
-        // For service verification, we just need to find the verb code and date
-        // The service might not include the noun code in the display
-        if (cellContains(cell, verbCode.toString()) && cellContains(cell, dateStr)) {
+        const text = cell.textContent || '';
+        // For service verification, we check for verb code, date, and minutes
+        if (
+          cellContains(cell, verbCode.toString()) && 
+          cellContains(cell, dateStr) && 
+          (cellContains(cell, `${minutes} Minute`) || cellContains(cell, `${minutes} Minutes`) || 
+           cellContains(cell, `${minutes}m`) || cellContains(cell, `${minutes} m`))
+        ) {
           return true;
         }
       }
       
       return false;
-    }, service.verb_code, service.noun_code, datePart);
+    }, service.verb_code, service.noun_code, datePart, service.calculatedMinutes);
     
     if (serviceFound) {
       console.log(chalk.green('Service was successfully verified in Medimizer'));
@@ -511,6 +533,44 @@ async function verifyServiceAdded(
     }
   } catch (error) {
     console.log(chalk.red(`Error verifying service: ${error instanceof Error ? error.message : 'Unknown error'}`));
+    return false;
+  }
+}
+
+/**
+ * Compare time values to see if they're equivalent, ignoring formatting differences
+ * 
+ * @param actual - Actual time value from the form
+ * @param expected - Expected time value
+ * @returns True if time values are equivalent
+ */
+function compareTimeValues(actual: string, expected: string): boolean {
+  try {
+    // Extract numbers and AM/PM from both strings
+    const actualNumbers = actual.replace(/[^0-9]/g, '');
+    const expectedNumbers = expected.replace(/[^0-9]/g, '');
+    
+    const actualHasAM = actual.toLowerCase().includes('am');
+    const actualHasPM = actual.toLowerCase().includes('pm');
+    const expectedHasAM = expected.toLowerCase().includes('am');
+    const expectedHasPM = expected.toLowerCase().includes('pm');
+    
+    // Special case - compact format might be missing leading zeros
+    if (expected.match(/^\d{3,4}(am|pm)$/i)) {
+      // For compact format like "800am" or "1118pm"
+      const numbers = expected.replace(/[^0-9]/g, '');
+      if (numbers === actualNumbers) {
+        return (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
+      }
+    }
+    
+    // Check if the numeric parts match and AM/PM matches
+    const numbersMatch = actualNumbers.includes(expectedNumbers) || expectedNumbers.includes(actualNumbers);
+    const amPmMatch = (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
+    
+    return numbersMatch && amPmMatch;
+  } catch (error) {
+    console.log(chalk.yellow(`Error comparing time values: ${error instanceof Error ? error.message : 'Unknown error'}`));
     return false;
   }
 }
@@ -542,6 +602,13 @@ function formatTimeForInput(timeString: string): string {
     return timeString;
   }
 }
+
+/**
+ * Parse datetime string into MM/DD/YYYY and HH:MM AM/PM format
+ * 
+ * @param datetime - Datetime string in format "YYYY-MM-DD HH:MM" or "YYYY-MM-DD HH-MM"
+ * @returns Tuple of [datePart, timePart]
+ */
 function parseDatetime(datetime: string): [string, string] {
   try {
     // Split datetime into date and time parts

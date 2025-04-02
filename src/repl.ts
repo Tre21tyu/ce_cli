@@ -1,6 +1,5 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import { openWorkOrder } from './commands/open';
 import { pushStack } from './commands/push';
 import { createLog, listLogs, openLog } from './commands/log';
 import { displayBanner } from './utils/banner';
@@ -11,6 +10,7 @@ import { addService, addPartToService } from './commands/service';
 import { closeWorkOrder } from './commands/close';
 import { openNotes, importNotes } from './commands/note';
 import { stackWorkOrder, displayStack, clearStack } from './commands/stack';
+import { startDay, endDay, getDaySummary } from './commands/day';
 
 /**
  * REPL (Read-Eval-Print-Loop) class for interactive CLI
@@ -21,7 +21,7 @@ export class CeCliRepl {
 
   /**
    * Constructor for the REPL
-   * 
+   *
    * @param bannerText - Optional text to display in the ASCII banner
    */
   constructor(bannerText?: string) {
@@ -33,12 +33,10 @@ export class CeCliRepl {
   /**
    * Display the welcome banner
    */
-  private displayWelcomeBanner(): void {
+  displayWelcomeBanner(): void {
     console.clear();
-
     // Display the ASCII art banner
     console.log(displayBanner(this.bannerText));
-
     // Display welcome message
     console.log(chalk.green('Welcome to ce_cli - Your all in one UofR biomed digital CLI tool!'));
     console.log(chalk.yellow('Type "help" to see available commands'));
@@ -48,7 +46,7 @@ export class CeCliRepl {
   /**
    * Start the REPL loop
    */
-  public async start(): Promise<void> {
+  async start(): Promise<void> {
     this.isRunning = true;
     this.displayWelcomeBanner();
 
@@ -75,10 +73,10 @@ export class CeCliRepl {
 
   /**
    * Process a command entered by the user
-   * 
+   *
    * @param commandLine - The command line entered by the user
    */
-  private async processCommand(commandLine: string): Promise<void> {
+  async processCommand(commandLine: string): Promise<void> {
     // Skip empty commands
     if (!commandLine) return;
 
@@ -108,23 +106,7 @@ export class CeCliRepl {
           }
         }
         break;
-      case 'open':
-        if (args.length === 0) {
-          console.log(chalk.red('Error: Work order number is required'));
-          console.log(chalk.yellow('Usage: open <7-digit-work-order-number>'));
-        } else {
-          try {
-            const result = await openWorkOrder(args[0]);
-            console.log(chalk.green(result));
-          } catch (error) {
-            if (error instanceof Error) {
-              console.log(chalk.red(error.message));
-            } else {
-              console.log(chalk.red('An unknown error occurred'));
-            }
-          }
-        }
-        break;
+
       case 'push-stack':
       case 'push':
         try {
@@ -140,6 +122,7 @@ export class CeCliRepl {
           }
         }
         break;
+
       case 'list':
       case 'ls':
         try {
@@ -205,7 +188,9 @@ export class CeCliRepl {
           }
         }
         break;
+
       case 'show':
+      case 'details':
         if (args.length === 0) {
           console.log(chalk.red('Error: Work order number is required'));
           console.log(chalk.yellow('Usage: details <7-digit-work-order-number>'));
@@ -222,57 +207,7 @@ export class CeCliRepl {
           }
         }
         break;
-      case 'log':
-        if (args.length === 0) {
-          console.log(chalk.red('Error: Log name is required'));
-          console.log(chalk.yellow('Usage: log <log-name>'));
-        } else {
-          try {
-            const logName = args.join(' '); // Combine all args to allow spaces in log name
-            const result = await createLog(logName);
-            console.log(chalk.green(result));
-          } catch (error) {
-            if (error instanceof Error) {
-              console.log(chalk.red(error.message));
-            } else {
-              console.log(chalk.red('An unknown error occurred'));
-            }
-          }
-        }
-        break;
 
-      case 'list-logs':
-      case 'logs':
-        try {
-          const result = await listLogs();
-          console.log(result);
-        } catch (error) {
-          if (error instanceof Error) {
-            console.log(chalk.red(error.message));
-          } else {
-            console.log(chalk.red('An unknown error occurred'));
-          }
-        }
-        break;
-
-      case 'open-log':
-        if (args.length === 0) {
-          console.log(chalk.red('Error: Log identifier is required'));
-          console.log(chalk.yellow('Usage: open-log <date-or-name>'));
-        } else {
-          try {
-            const logIdentifier = args.join(' '); // Combine all args
-            const result = await openLog(logIdentifier);
-            console.log(chalk.green(result));
-          } catch (error) {
-            if (error instanceof Error) {
-              console.log(chalk.red(error.message));
-            } else {
-              console.log(chalk.red('An unknown error occurred'));
-            }
-          }
-        }
-        break;
       case 'service':
       case 'add-service':
         if (args.length < 3) {
@@ -284,7 +219,6 @@ export class CeCliRepl {
             const verb = args[1];
             const noun = args[2];
             const duration = args.length > 3 ? parseInt(args[3], 10) : 0;
-
             const result = await addService(workOrderNumber, verb, noun, duration);
             console.log(result);
           } catch (error) {
@@ -309,7 +243,6 @@ export class CeCliRepl {
             const partNumber = args[2];
             const quantity = args.length > 3 ? parseInt(args[3], 10) : 1;
             const cost = args.length > 4 ? parseFloat(args[4]) : undefined;
-
             const result = await addPartToService(workOrderNumber, serviceIndex, partNumber, quantity, cost);
             console.log(result);
           } catch (error) {
@@ -321,7 +254,6 @@ export class CeCliRepl {
           }
         }
         break;
-      // This is the section to add to the processCommand method in repl.ts
 
       case 'stack':
         if (args.length === 0) {
@@ -363,6 +295,7 @@ export class CeCliRepl {
           }
         }
         break;
+
       case 'close':
         if (args.length === 0) {
           console.log(chalk.red('Error: Work order number is required'));
@@ -417,38 +350,40 @@ export class CeCliRepl {
         }
         break;
 
-      case 'stack':
-        if (args.length === 0) {
-          try {
-            // If no arguments, display the stack
-            const result = await displayStack();
-            console.log(result);
-          } catch (error) {
-            if (error instanceof Error) {
-              console.log(chalk.red(error.message));
-            } else {
-              console.log(chalk.red('An unknown error occurred'));
-            }
-          }
-        } else {
-          try {
-            // If argument is provided, stack the work order
-            const result = await stackWorkOrder(args[0]);
-            console.log(chalk.green(result));
-          } catch (error) {
-            if (error instanceof Error) {
-              console.log(chalk.red(error.message));
-            } else {
-              console.log(chalk.red('An unknown error occurred'));
-            }
+      // Time tracking commands
+      case 'start-day':
+      case 'start':
+        try {
+          const result = await startDay();
+          console.log(result);
+        } catch (error) {
+          if (error instanceof Error) {
+            console.log(chalk.red(error.message));
+          } else {
+            console.log(chalk.red('An unknown error occurred'));
           }
         }
         break;
 
-      case 'clear-stack':
+      case 'end-day':
+      case 'end':
         try {
-          const result = await clearStack();
-          console.log(chalk.green(result));
+          const result = await endDay();
+          console.log(result);
+        } catch (error) {
+          if (error instanceof Error) {
+            console.log(chalk.red(error.message));
+          } else {
+            console.log(chalk.red('An unknown error occurred'));
+          }
+        }
+        break;
+
+      case 'status':
+      case 'day-status':
+        try {
+          const result = await getDaySummary();
+          console.log(result);
         } catch (error) {
           if (error instanceof Error) {
             console.log(chalk.red(error.message));
@@ -459,9 +394,7 @@ export class CeCliRepl {
         break;
 
       case 'help':
-        // This is the section to add to the displayHelp method in repl.ts
         this.displayHelp();
-
         break;
 
       case 'clear':
@@ -488,27 +421,48 @@ export class CeCliRepl {
   /**
    * Display help information
    */
-  private displayHelp(): void {
+  displayHelp(): void {
     console.log(chalk.yellow('Available commands:'));
+    
+    // Work order management
+    console.log(chalk.cyan('\nWork Order Management:'));
     console.log(chalk.cyan('  init <wo-number> [control-number]') + ' - Initialize a new work order');
     console.log(chalk.cyan('  list, ls') + ' - List all existing work orders');
     console.log(chalk.cyan('  details, show <wo-number>') + ' - Show detailed information for a work order');
+    console.log(chalk.cyan('  close <wo-number>') + ' - Close a work order');
+    
+    // Service and part management
+    console.log(chalk.cyan('\nService & Part Management:'));
     console.log(chalk.cyan('  service <wo-number> <verb> <noun> [duration]') + ' - Add a service to a work order');
     console.log(chalk.cyan('  part <wo-number> <service-index> <part-number> [quantity] [cost]') + ' - Add a part to a service');
-    console.log(chalk.cyan('  close <wo-number>') + ' - Close a work order');
+    
+    // Notes management
+    console.log(chalk.cyan('\nNotes Management:'));
     console.log(chalk.cyan('  note <wo-number>') + ' - Open notes for a work order');
     console.log(chalk.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
+    
+    // Stack management
+    console.log(chalk.cyan('\nStack Management:'));
     console.log(chalk.cyan('  stack [wo-number]') + ' - Stack a work order or display the stack');
     console.log(chalk.cyan('  clear-stack') + ' - Clear the stack');
-    console.log(chalk.cyan('  help') + ' - Display this help information');
-    console.log(chalk.cyan('  clear') + ' - Clear the screen');
-    console.log(chalk.cyan('  exit') + ' - Exit the application');
-    console.log(chalk.cyan('  stack [wo-number]') + ' - Add a work order to the stack or display the current stack');
-    console.log(chalk.cyan('  clear-stack') + ' - Clear all work orders from the stack');
+    console.log(chalk.cyan('  push-stack, push [--dry-run]') + ' - Push services to Medimizer');
+    
+    // Time tracking
+    console.log(chalk.cyan('\nTime Tracking:'));
+    console.log(chalk.cyan('  start-day, start') + ' - Start a new work day for time tracking');
+    console.log(chalk.cyan('  end-day, end') + ' - End the current work day and see summary');
+    console.log(chalk.cyan('  status, day-status') + ' - Display current day status and productivity');
+    
+    // Journal management
+    console.log(chalk.cyan('\nJournal Management:'));
     console.log(chalk.cyan('  log <log-name>') + ' - Create a new journal log entry');
     console.log(chalk.cyan('  list-logs, logs') + ' - List all journal log entries');
     console.log(chalk.cyan('  open-log <date-or-name>') + ' - Open a specific log entry');
-    console.log(chalk.cyan('  push-stack, push [--dry-run]') + ' - Push services to Medimizer');
-    console.log(chalk.cyan('  open <wo-number>') + ' - Open a work order in Medimizer (browser stays open)');
+    
+    // General commands
+    console.log(chalk.cyan('\nGeneral Commands:'));
+    console.log(chalk.cyan('  help') + ' - Display this help information');
+    console.log(chalk.cyan('  clear, cls') + ' - Clear the screen');
+    console.log(chalk.cyan('  exit, quit') + ' - Exit the application');
   }
 }

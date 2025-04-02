@@ -7,8 +7,9 @@ exports.pushStack = pushStack;
 const chalk_1 = __importDefault(require("chalk"));
 const stack_manager_1 = require("../utils/stack-manager");
 const browser_enhanced_1 = require("../utils/browser-enhanced");
+const day_tracker_1 = require("../utils/day-tracker");
 /**
- * Push services from the stack to Medimizer
+ * Push services from the stack to Medimizer with time tracking
  *
  * @param dryRun - If true, simulate without actually pushing to Medimizer
  * @returns A promise that resolves to a success message
@@ -25,14 +26,25 @@ async function pushStack(dryRun = false) {
         // Count total services that need to be pushed
         let totalServices = 0;
         let unpushedServices = 0;
+        let totalMinutes = 0;
         stack.forEach(wo => {
             totalServices += wo.services.length;
             unpushedServices += wo.services.filter(service => !service.pushedToMM).length;
+            // Sum up minutes for unpushed services
+            wo.services.filter(service => !service.pushedToMM).forEach(service => {
+                totalMinutes += service.calculatedMinutes || 0;
+            });
         });
         if (unpushedServices === 0) {
             return 'All services in the stack have already been pushed to Medimizer.';
         }
-        console.log(chalk_1.default.yellow(`Preparing to push ${unpushedServices} service(s) to Medimizer...`));
+        console.log(chalk_1.default.yellow(`Preparing to push ${unpushedServices} service(s) totaling ${totalMinutes} minutes to Medimizer...`));
+        // Check if there's an active day
+        const dayTracker = day_tracker_1.DayTrackerManager.getInstance();
+        const currentDay = await dayTracker.getCurrentDay();
+        if (!currentDay || currentDay.day_end) {
+            console.log(chalk_1.default.yellow(`Warning: No active day found. Service time will not be tracked in day statistics.`));
+        }
         if (dryRun) {
             console.log(chalk_1.default.yellow('DRY RUN: No actual changes will be made to Medimizer.'));
             return await simulatePush(stack);
@@ -55,6 +67,7 @@ async function pushStack(dryRun = false) {
             // Push each work order's services
             let successCount = 0;
             let failureCount = 0;
+            let pushedMinutes = 0;
             for (const workOrder of stack) {
                 console.log(chalk_1.default.cyan(`Processing work order ${workOrder.workOrderNumber}...`));
                 // Get unpushed services for this work order
@@ -65,14 +78,15 @@ async function pushStack(dryRun = false) {
                 }
                 for (let i = 0; i < unpushedServices.length; i++) {
                     const service = unpushedServices[i];
-                    console.log(chalk_1.default.yellow(`Pushing service ${i + 1}/${unpushedServices.length}: Verb ${service.verb_code}${service.noun_code ? `, Noun ${service.noun_code}` : ''}`));
+                    console.log(chalk_1.default.yellow(`Pushing service ${i + 1}/${unpushedServices.length}: Verb ${service.verb_code}${service.noun_code ? `, Noun ${service.noun_code}` : ''} (${service.calculatedMinutes} minutes)`));
                     try {
-                        // Push the service to Medimizer
+                        // Push the service to Medimizer with time allocation
                         await pushServiceToMedimizer(browser, workOrder.workOrderNumber, service);
                         // Mark service as pushed
                         service.pushedToMM = 1;
+                        pushedMinutes += service.calculatedMinutes || 0;
                         successCount++;
-                        console.log(chalk_1.default.green(`Service pushed successfully.`));
+                        console.log(chalk_1.default.green(`Service pushed successfully (${service.calculatedMinutes} minutes).`));
                     }
                     catch (error) {
                         console.error(chalk_1.default.red(`Failed to push service: ${error instanceof Error ? error.message : 'Unknown error'}`));
@@ -85,7 +99,7 @@ async function pushStack(dryRun = false) {
             // Close browser
             await browser.close();
             // Return summary
-            return `Push completed. ${successCount} service(s) pushed successfully, ${failureCount} failed.`;
+            return `Push completed. ${successCount} service(s) pushed successfully (${pushedMinutes} minutes), ${failureCount} failed.`;
         }
         catch (error) {
             // Make sure to close the browser even if there's an error
@@ -115,21 +129,27 @@ async function pushStack(dryRun = false) {
  */
 async function simulatePush(stack) {
     let totalServices = 0;
+    let totalMinutes = 0;
     for (const workOrder of stack) {
         const unpushedServices = workOrder.services.filter((service) => !service.pushedToMM);
         if (unpushedServices.length > 0) {
             console.log(chalk_1.default.cyan(`Would push ${unpushedServices.length} service(s) for work order ${workOrder.workOrderNumber}:`));
+            let workOrderMinutes = 0;
             unpushedServices.forEach((service, index) => {
                 // Parse datetime into MM/DD/YYYY and HH:MM AM/PM format
                 const [datePart, timePart] = parseDatetime(service.datetime);
                 console.log(chalk_1.default.white(`  ${index + 1}. Verb: ${service.verb_code}${service.noun_code ? `, Noun: ${service.noun_code}` : ''}`));
                 console.log(chalk_1.default.white(`     Date: ${datePart}, Time: ${timePart}`));
+                console.log(chalk_1.default.white(`     Duration: ${service.calculatedMinutes} minutes`));
                 console.log(chalk_1.default.white(`     Notes: ${service.notes.substring(0, 50)}${service.notes.length > 50 ? '...' : ''}`));
+                workOrderMinutes += service.calculatedMinutes || 0;
             });
+            console.log(chalk_1.default.cyan(`  Total for WO ${workOrder.workOrderNumber}: ${workOrderMinutes} minutes`));
             totalServices += unpushedServices.length;
+            totalMinutes += workOrderMinutes;
         }
     }
-    return `Simulation complete. Would push ${totalServices} service(s) to Medimizer.`;
+    return `Simulation complete. Would push ${totalServices} service(s) with ${totalMinutes} total minutes to Medimizer.`;
 }
 /**
  * Push a service to Medimizer using browser automation
@@ -175,10 +195,74 @@ async function pushServiceToMedimizer(browser, workOrderNumber, service) {
         const [datePart, timePart] = parseDatetime(service.datetime);
         // Enter Date
         await enterTextWithRetry(browser, '#ContentPlaceHolder1_pagService_datCompletedOn_I', datePart);
-        // Enter Time
-        await enterTextWithRetry(browser, '#ContentPlaceHolder1_pagService_timCompletedOn_I', timePart);
-        // Enter Time Used (0 for now)
-        await enterTextWithRetry(browser, '#ContentPlaceHolder1_pagService_meTime_I', '0');
+        // Press Enter after entering date
+        await browser.page.keyboard.press('Enter');
+        // Enter Time - simplified format with no colon or space
+        // Format time as "800am" or "1118pm" and press Enter
+        const timeFormatted = formatTimeForInput(timePart);
+        await enterTextWithRetry(browser, '#ContentPlaceHolder1_pagService_timCompletedOn_I', timeFormatted);
+        // Press Enter after entering time
+        await browser.page.keyboard.press('Enter');
+        // Enter Time Used from service.calculatedMinutes
+        console.log(chalk_1.default.yellow(`Setting service time to ${service.calculatedMinutes} minutes`));
+        // Try multiple possible selectors for the time used field
+        const timeUsedSelectors = [
+            '#ContentPlaceHolder1_pagService_meTime_I',
+            '#ContentPlaceHolder1_pagService_txtTime_I',
+            'input[name="ctl00$ContentPlaceHolder1$pagService$meTime"]'
+        ];
+        let timeFieldFound = false;
+        for (const selector of timeUsedSelectors) {
+            try {
+                const exists = await browser.page.waitForSelector(selector, {
+                    visible: true,
+                    timeout: 2000
+                }).then(() => true).catch(() => false);
+                if (exists) {
+                    await enterTextWithRetry(browser, selector, service.calculatedMinutes.toString());
+                    // Press Enter after entering time used
+                    await browser.page.keyboard.press('Enter');
+                    timeFieldFound = true;
+                    break;
+                }
+            }
+            catch (error) {
+                console.log(chalk_1.default.yellow(`Time used selector ${selector} not found, trying next...`));
+            }
+        }
+        if (!timeFieldFound) {
+            console.log(chalk_1.default.yellow('Could not find time used field, continuing anyway...'));
+            // Take screenshot for debugging
+            await browser.takeScreenshot('time_field_not_found');
+        }
+        // Enter Employee (LPOLLOCK) - last field before submission
+        const employeeSelector = '#ContentPlaceHolder1_pagService_cboEmployees_I';
+        try {
+            await enterTextWithRetry(browser, employeeSelector, 'LPOLLOCK');
+            // Press Enter after entering employee
+            await browser.page.keyboard.press('Enter');
+            console.log(chalk_1.default.green('Successfully entered employee information'));
+        }
+        catch (error) {
+            console.log(chalk_1.default.yellow(`Could not enter employee information: ${error instanceof Error ? error.message : 'Unknown error'}`));
+            // Continue anyway - the field might have a default value
+        }
+        // Add notes
+        if (service.notes) {
+            try {
+                // Look for notes textarea
+                const notesSelector = '#ContentPlaceHolder1_pagService_memNotes_I';
+                if (await browser.page.waitForSelector(notesSelector, { visible: true, timeout: 5000 }).then(() => true).catch(() => false)) {
+                    await browser.page.click(notesSelector, { clickCount: 3 });
+                    await browser.page.type(notesSelector, service.notes);
+                    console.log(chalk_1.default.green('Successfully entered service notes'));
+                }
+            }
+            catch (error) {
+                console.log(chalk_1.default.yellow(`Could not enter notes: ${error instanceof Error ? error.message : 'Unknown error'}`));
+                // Continue anyway - notes are optional
+            }
+        }
         // Screenshot before submission
         await browser.page.screenshot({ path: browser.getScreenshotPath('before_service_submit'), fullPage: true });
         // Submit the form
@@ -195,6 +279,13 @@ async function pushServiceToMedimizer(browser, workOrderNumber, service) {
         const wasAdded = await verifyServiceAdded(browser, workOrderNumber, service);
         if (!wasAdded) {
             throw new Error('Service was not successfully added to Medimizer');
+        }
+        // Update day tracker with service minutes
+        const dayTracker = day_tracker_1.DayTrackerManager.getInstance();
+        const currentDay = await dayTracker.getCurrentDay();
+        if (currentDay && !currentDay.day_end) {
+            // No need to add service minutes here, as they've already been added when stacking
+            console.log(chalk_1.default.green(`Service time (${service.calculatedMinutes} minutes) already tracked in day stats`));
         }
     }
     catch (error) {
@@ -227,14 +318,34 @@ async function enterTextWithRetry(browser, selector, text) {
             await browser.page.waitForSelector(selector, { visible: true, timeout: 5000 });
             // Click to focus and clear existing content
             await browser.page.click(selector, { clickCount: 3 });
+            await browser.page.keyboard.press('Backspace'); // Ensure field is cleared
+            // Wait a bit before typing (some forms need this delay)
+            await new Promise(resolve => setTimeout(resolve, 200));
             // Type the text
             await browser.page.type(selector, text, { delay: 50 });
+            // Wait a bit to allow form to process the input
+            await new Promise(resolve => setTimeout(resolve, 200));
             // Verify text was entered
             const enteredText = await browser.page.evaluate((sel) => {
                 const input = document.querySelector(sel);
                 return input ? input.value : '';
             }, selector);
-            if (enteredText.includes(text)) {
+            // For time fields, AM/PM might be automatically set by the form,
+            // so we check if the text is contained rather than exact match
+            if (text.includes(':') || text.toLowerCase().includes('am') || text.toLowerCase().includes('pm')) {
+                // For time fields, check if the important parts match
+                const timeMatch = compareTimeValues(enteredText, text);
+                if (timeMatch) {
+                    success = true;
+                    console.log(chalk_1.default.green(`Successfully entered time value similar to "${text}" into ${selector}`));
+                }
+                else {
+                    console.log(chalk_1.default.yellow(`Failed to enter time correctly. Expected "${text}", got "${enteredText}". Retrying...`));
+                    retries++;
+                }
+            }
+            else if (enteredText.includes(text) || text.includes(enteredText)) {
+                // For other fields, check if the text is contained
                 success = true;
                 console.log(chalk_1.default.green(`Successfully entered "${text}" into ${selector}`));
             }
@@ -291,23 +402,26 @@ async function verifyServiceAdded(browser, workOrderNumber, service) {
         // Take screenshot of the services page
         await browser.takeScreenshot('service_verification');
         // Look for the service in the table
-        const serviceFound = await browser.page.evaluate((verbCode, nounCode, dateStr) => {
+        const serviceFound = await browser.page.evaluate((verbCode, nounCode, dateStr, minutes) => {
             // Helper function to check if a cell contains text
             const cellContains = (cell, text) => {
                 return cell.textContent?.includes(text) || false;
             };
             // Get all service rows
             const cells = Array.from(document.querySelectorAll('td.dxgv'));
-            // Look for cells that contain both the verb code and the date
+            // Look for cells that contain the verb code, date, and minutes
             for (const cell of cells) {
-                // For service verification, we just need to find the verb code and date
-                // The service might not include the noun code in the display
-                if (cellContains(cell, verbCode.toString()) && cellContains(cell, dateStr)) {
+                const text = cell.textContent || '';
+                // For service verification, we check for verb code, date, and minutes
+                if (cellContains(cell, verbCode.toString()) &&
+                    cellContains(cell, dateStr) &&
+                    (cellContains(cell, `${minutes} Minute`) || cellContains(cell, `${minutes} Minutes`) ||
+                        cellContains(cell, `${minutes}m`) || cellContains(cell, `${minutes} m`))) {
                     return true;
                 }
             }
             return false;
-        }, service.verb_code, service.noun_code, datePart);
+        }, service.verb_code, service.noun_code, datePart, service.calculatedMinutes);
         if (serviceFound) {
             console.log(chalk_1.default.green('Service was successfully verified in Medimizer'));
             return true;
@@ -320,6 +434,65 @@ async function verifyServiceAdded(browser, workOrderNumber, service) {
     catch (error) {
         console.log(chalk_1.default.red(`Error verifying service: ${error instanceof Error ? error.message : 'Unknown error'}`));
         return false;
+    }
+}
+/**
+ * Compare time values to see if they're equivalent, ignoring formatting differences
+ *
+ * @param actual - Actual time value from the form
+ * @param expected - Expected time value
+ * @returns True if time values are equivalent
+ */
+function compareTimeValues(actual, expected) {
+    try {
+        // Extract numbers and AM/PM from both strings
+        const actualNumbers = actual.replace(/[^0-9]/g, '');
+        const expectedNumbers = expected.replace(/[^0-9]/g, '');
+        const actualHasAM = actual.toLowerCase().includes('am');
+        const actualHasPM = actual.toLowerCase().includes('pm');
+        const expectedHasAM = expected.toLowerCase().includes('am');
+        const expectedHasPM = expected.toLowerCase().includes('pm');
+        // Special case - compact format might be missing leading zeros
+        if (expected.match(/^\d{3,4}(am|pm)$/i)) {
+            // For compact format like "800am" or "1118pm"
+            const numbers = expected.replace(/[^0-9]/g, '');
+            if (numbers === actualNumbers) {
+                return (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
+            }
+        }
+        // Check if the numeric parts match and AM/PM matches
+        const numbersMatch = actualNumbers.includes(expectedNumbers) || expectedNumbers.includes(actualNumbers);
+        const amPmMatch = (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
+        return numbersMatch && amPmMatch;
+    }
+    catch (error) {
+        console.log(chalk_1.default.yellow(`Error comparing time values: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return false;
+    }
+}
+/**
+ * Format time from "HH:MM AM/PM" to compact format "HHMMam/pm" for input fields
+ *
+ * @param timeString - Time string in format "HH:MM AM/PM"
+ * @returns Formatted time string like "800am" or "1118pm"
+ */
+function formatTimeForInput(timeString) {
+    try {
+        // Extract hours, minutes, and period (AM/PM)
+        const matches = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!matches) {
+            console.log(chalk_1.default.yellow(`Could not parse time string: ${timeString}, using as is`));
+            return timeString;
+        }
+        const hours = parseInt(matches[1], 10);
+        const minutes = matches[2];
+        const period = matches[3].toLowerCase();
+        // Combine without colon or space
+        return `${hours}${minutes}${period}`;
+    }
+    catch (error) {
+        console.log(chalk_1.default.yellow(`Error formatting time: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return timeString;
     }
 }
 /**

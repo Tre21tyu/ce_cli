@@ -1,0 +1,36 @@
+#+title: Todos
+* Data Structures
+** ~day~: JSON object
+#+begin_src json
+{
+  "day_begin": "YYYY-MM-DD HH:MM:SS"
+  "day_end": "YYYY-MM-DD HH:MM:SS"
+  "total_day_minutes":
+  "total_service_minutes":
+}
+#+end_src
+
+* Functions
+~start-day~ => Begin day. Need to add /start/ time.
+Init daily log (call log)
+
+We can open this log by typing log.
+#+begin_src bash
+log today
+#+end_src
+
+We can open yesterdays log by typing in
+#+begin_src bash
+log yesterday
+#+end_src
+
+We can get our list of daily logs by typing in
+#+begin_src bash
+log daily
+#+end_src
+~clock-in~ => Begin day+clock in. Go to UKG, verify NOT already clocked in, clock in
+
+~end-day~ => End day. Need to add /end/ time
+~clock-out~ => Begin day+clock in. Go to UKG, verify NOT already clocked out, clock in
+
+* Functions

@@ -9,13 +9,14 @@ const filesystem_1 = require("../utils/filesystem");
 const inquirer_1 = __importDefault(require("inquirer"));
 const chalk_1 = __importDefault(require("chalk"));
 const browser_enhanced_1 = require("../utils/browser-enhanced");
-const filesystem_2 = require("../utils/filesystem");
+const day_tracker_1 = require("../utils/day-tracker");
 /**
  * Initialize a new work order
  *
  * This command creates a new work order in the database with the provided 7-digit number
  * and optional 8-digit control number. It also creates a directory structure for the work order.
  * Optionally imports notes from Medimizer if requested.
+ * Now includes start time tracking for service time allocation.
  *
  * @param workOrderNumber - 7-digit work order number
  * @param controlNumber - Optional 8-digit control number
@@ -42,6 +43,40 @@ async function initWorkOrder(workOrderNumber, controlNumber) {
         await (0, filesystem_1.createNotesFile)(workOrderNumber);
         // Initial success message
         let resultMessage = `Work order ${workOrderNumber} initialized successfully with directory structure`;
+        // Get current time for START TIME tracking
+        const now = new Date();
+        const currentTime = now.toLocaleTimeString('en-US', { hour12: false });
+        // Add start time to notes file
+        // First read the existing content
+        const notesFilePath = await (0, filesystem_1.createNotesFile)(workOrderNumber);
+        // Add START TIME marker to notes
+        await (0, filesystem_1.writeNotesFile)(workOrderNumber, `
+================================
+IMPORTED FROM MM ON ${now.toISOString().split('T')[0]} at ${currentTime}
+================================
+
+---
+START/RESUME TIME: ${currentTime}
+
+`);
+        // Check if day tracking is active
+        const dayTracker = day_tracker_1.DayTrackerManager.getInstance();
+        const currentDay = await dayTracker.getCurrentDay();
+        if (!currentDay || currentDay.day_end) {
+            // No active day, ask if the user wants to start one
+            const { startDay } = await inquirer_1.default.prompt([
+                {
+                    type: 'confirm',
+                    name: 'startDay',
+                    message: chalk_1.default.yellow('No active day found. Would you like to start a new day?'),
+                    default: true
+                }
+            ]);
+            if (startDay) {
+                await dayTracker.startDay();
+                resultMessage += '\nNew work day started.';
+            }
+        }
         // Prompt user if they want to import notes from Medimizer
         const { importData } = await inquirer_1.default.prompt([
             {
@@ -101,14 +136,37 @@ async function importFromMedimizer(workOrderNumber) {
         // Get current date for timestamp
         const currentDate = new Date();
         const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
-        const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
+        const formattedTime = currentDate.toLocaleTimeString('en-US', { hour12: false });
+        // Preserve START TIME line if it exists in current notes
+        let currentNotes;
+        try {
+            const parts = notes.split('---');
+            if (parts.length > 1 && parts[1].includes('START/RESUME TIME:')) {
+                currentNotes = parts[1];
+            }
+        }
+        catch (e) {
+            // Ignore parsing errors
+        }
         // Format content with timestamp, notes, and services
         let formattedContent = `
 ================================
 IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
 ================================
 
-${notes || '~No notes found in Medimizer~'}
+`;
+        // Add START TIME if it was found
+        if (currentNotes) {
+            formattedContent += `---${currentNotes}\n`;
+        }
+        else {
+            formattedContent += `---
+START/RESUME TIME: ${formattedTime}
+
+`;
+        }
+        // Add notes content
+        formattedContent += `${notes || '~No notes found in Medimizer~'}
 
 `;
         // Only add services section if we actually found services
@@ -122,7 +180,7 @@ ${services.join('\n')}
 `;
         }
         // Write to the notes file
-        await (0, filesystem_2.writeNotesFile)(workOrderNumber, formattedContent);
+        await (0, filesystem_1.writeNotesFile)(workOrderNumber, formattedContent);
         // Close the browser
         await browser.close();
         return `Notes${services.length > 0 ? ` and ${services.length} services` : ''} imported successfully from Medimizer`;
