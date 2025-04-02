@@ -88,8 +88,24 @@ export async function parseServices(workOrderNumber: string): Promise<ParsedServ
     
     // Process each line individually
     for (const line of lines) {
-      // Skip if the line contains the (||) marker (already processed)
+      // Skip if the line already contains the (||) marker (already processed)
       if (line.includes('(||)')) {
+        // Extract the service details from the marked line for reference
+        const serviceMatch = line.match(/^\s*\[(.*?)(?:,\s*(.*?))?\]\s*\((\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}(?::\d{2})?)\)\s*=>\s*(.*?)\s*\(?\|\|\)?$/);
+        
+        if (serviceMatch) {
+          const verb = serviceMatch[1]?.trim() || '';
+          const noun = serviceMatch[2]?.trim();
+          const datetime = serviceMatch[3]?.trim() || '';
+          
+          // If this service has already been processed, update the previous timestamp
+          const timestamp = new Date(datetime);
+          if (!isNaN(timestamp.getTime())) {
+            previousTimestamp = timestamp;
+            console.log(chalk.gray(`Found already processed service: ${verb}${noun ? ", " + noun : ""} at ${datetime}`));
+          }
+        }
+        
         continue;
       }
       
@@ -107,29 +123,30 @@ export async function parseServices(workOrderNumber: string): Promise<ParsedServ
         const timestamp = new Date(datetime);
         
         // Calculate minutes since previous timestamp/start time
-        let calculatedMinutes = 0;
+        let calculatedMinutes = 1; // Default to 1 minute minimum
+        
         if (previousTimestamp && !isNaN(timestamp.getTime())) {
-          // When service time is earlier than start time, use a default value instead of negative time
-          if (timestamp.getTime() < previousTimestamp.getTime()) {
-            console.log(chalk.yellow(`Warning: Service timestamp (${timestamp.toISOString()}) is earlier than start time (${previousTimestamp.toISOString()})`));
+          // If service timestamp is in the future compared to previous timestamp
+          if (timestamp.getTime() > previousTimestamp.getTime()) {
+            // Calculate minutes difference - realistic time tracking
+            const diffMinutes = Math.round((timestamp.getTime() - previousTimestamp.getTime()) / 60000);
             
-            // Default to a reasonable time if timestamp is out of order (15 minutes)
-            calculatedMinutes = 15;
+            // Cap at a reasonable maximum (e.g., 60 minutes)
+            calculatedMinutes = Math.min(diffMinutes, 60);
+            
+            // Ensure minimum time (1 minute)
+            calculatedMinutes = Math.max(calculatedMinutes, 1);
           } else {
-            // Calculate minutes difference
-            calculatedMinutes = Math.round((timestamp.getTime() - previousTimestamp.getTime()) / 60000);
-          }
-          
-          // Set a minimum time for any service (5 minutes)
-          if (calculatedMinutes < 5) {
-            calculatedMinutes = 5;
+            // If timestamps are out of order, use a small default value
+            console.log(chalk.yellow(`Service timestamp (${timestamp.toISOString()}) is not after previous timestamp (${previousTimestamp.toISOString()})`));
+            calculatedMinutes = 2; // Small default value for out-of-order timestamps
           }
           
           // Update previous timestamp for next calculation
           previousTimestamp = timestamp;
         } else if (!previousTimestamp) {
-          // If no previous timestamp, set a default time (15 minutes)
-          calculatedMinutes = 15;
+          // If no previous timestamp, set a small default time
+          calculatedMinutes = 2;
           previousTimestamp = timestamp;
         }
         
