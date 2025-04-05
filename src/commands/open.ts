@@ -29,7 +29,7 @@ export async function openWorkOrder(workOrderNumber: string): Promise<string> {
       await browser.initialize();
       
       // Navigate to work order page
-      const url = `http://sqlmedimizer1/MMWeb/App_Pages/WOForm.aspx?wo=${workOrderNumber}&mode=Edit&tab=0`;
+      const url = `http://10.221.0.155/MMWeb/App_Pages/WOForm.aspx?wo=${workOrderNumber}&mode=Edit&tab=0`;
       
       console.log(chalk.yellow(`Navigating to ${url}...`));
       if (!browser.page) {
@@ -43,7 +43,15 @@ export async function openWorkOrder(workOrderNumber: string): Promise<string> {
       const isLoginPage = await browser.isLoginPage();
       if (isLoginPage) {
         console.log(chalk.yellow('Login page detected. Logging in...'));
-        await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
+        
+        // Use the complete password string with special characters
+        const username = 'LPOLLOCK';
+        const password = '890piojkl!@#$98'; // Full 15-character password
+        const database = 'URMCCEX3';
+        
+        console.log(chalk.yellow(`Logging in as ${username} with password (${password.length} chars)`));
+        
+        await browser.login(username, password, database);
         
         // Navigate back to work order page after login
         await browser.page.goto(url, { waitUntil: 'networkidle2' });
