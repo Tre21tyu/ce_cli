@@ -15,6 +15,7 @@ const details_1 = require("./commands/details");
 const service_1 = require("./commands/service");
 const close_1 = require("./commands/close");
 const note_1 = require("./commands/note");
+const open_1 = require("./commands/open");
 const stack_1 = require("./commands/stack");
 const day_1 = require("./commands/day");
 /**
@@ -375,6 +376,26 @@ class CeCliRepl {
                     }
                 }
                 break;
+            case 'open':
+                if (args.length === 0) {
+                    console.log(chalk_1.default.red('Error: Work order number is required'));
+                    console.log(chalk_1.default.yellow('Usage: open <7-digit-work-order-number>'));
+                }
+                else {
+                    try {
+                        const result = await (0, open_1.openWorkOrder)(args[0]);
+                        console.log(chalk_1.default.green(result));
+                    }
+                    catch (error) {
+                        if (error instanceof Error) {
+                            console.log(chalk_1.default.red(error.message));
+                        }
+                        else {
+                            console.log(chalk_1.default.red('An unknown error occurred'));
+                        }
+                    }
+                }
+                break;
             // Time tracking commands
             case 'start-day':
             case 'start':
@@ -460,6 +481,7 @@ class CeCliRepl {
         console.log(chalk_1.default.cyan('\nNotes Management:'));
         console.log(chalk_1.default.cyan('  note <wo-number>') + ' - Open notes for a work order');
         console.log(chalk_1.default.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
+        console.log(chalk_1.default.cyan('  open <wo-number>') + ' - Open work order in Medimizer browser');
         // Stack management
         console.log(chalk_1.default.cyan('\nStack Management:'));
         console.log(chalk_1.default.cyan('  stack [wo-number]') + ' - Stack a work order or display the stack');
