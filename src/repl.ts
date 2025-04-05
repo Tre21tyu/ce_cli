@@ -9,6 +9,7 @@ import { getWorkOrderDetails } from './commands/details';
 import { addService, addPartToService } from './commands/service';
 import { closeWorkOrder } from './commands/close';
 import { openNotes, importNotes } from './commands/note';
+import { openWorkOrder } from './commands/open';
 import { stackWorkOrder, displayStack, clearStack } from './commands/stack';
 import { startDay, endDay, getDaySummary } from './commands/day';
 
@@ -350,6 +351,24 @@ export class CeCliRepl {
         }
         break;
 
+      case 'open':
+        if (args.length === 0) {
+          console.log(chalk.red('Error: Work order number is required'));
+          console.log(chalk.yellow('Usage: open <7-digit-work-order-number>'));
+        } else {
+          try {
+            const result = await openWorkOrder(args[0]);
+            console.log(chalk.green(result));
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
+
       // Time tracking commands
       case 'start-day':
       case 'start':
@@ -440,6 +459,7 @@ export class CeCliRepl {
     console.log(chalk.cyan('\nNotes Management:'));
     console.log(chalk.cyan('  note <wo-number>') + ' - Open notes for a work order');
     console.log(chalk.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
+    console.log(chalk.cyan('  open <wo-number>') + ' - Open work order in Medimizer browser');
     
     // Stack management
     console.log(chalk.cyan('\nStack Management:'));
