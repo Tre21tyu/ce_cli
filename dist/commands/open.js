@@ -40,7 +40,7 @@ async function openWorkOrder(workOrderNumber) {
             const isLoginPage = await browser.isLoginPage();
             if (isLoginPage) {
                 console.log(chalk_1.default.yellow('Login page detected. Logging in...'));
-                await browser.login('LPOLLOCK', 'password', 'URMCCEX3');
+                await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
                 // Navigate back to work order page after login
                 await browser.page.goto(url, { waitUntil: 'networkidle2' });
                 await browser.takeScreenshot('open_work_order_after_login');

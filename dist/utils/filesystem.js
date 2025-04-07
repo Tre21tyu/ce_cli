@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createWorkOrderDirectory = createWorkOrderDirectory;
 exports.getFormattedDateTime = getFormattedDateTime;
+exports.getFormattedServiceImportTime = getFormattedServiceImportTime;
 exports.createNotesFile = createNotesFile;
 exports.getNotesFilePath = getNotesFilePath;
 exports.readNotesFile = readNotesFile;
@@ -70,6 +71,18 @@ function getFormattedDateTime() {
     const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const time = now.toTimeString().split(' ')[0]; // HH:MM:SS
     return `${date} at ${time}`;
+}
+/**
+ * Format the current date and time for service imports
+ *
+ * @returns Formatted date and time string for services import (YYYY-MM-DD HH:MM)
+ */
+function getFormattedServiceImportTime() {
+    const now = new Date();
+    const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${date} ${hours}:${minutes}`;
 }
 /**
  * Create an initial notes markdown file for a work order

@@ -86,8 +86,9 @@ async function importNotes(workOrderNumber) {
         const servicesFromMM = await browser.importServices(workOrderNumber);
         // Print services count for debugging
         console.log(chalk_1.default.yellow(`Found ${servicesFromMM.length} services to import`));
-        // Get current date for timestamp
+        // Get formatted timestamps
         const formattedDateTime = (0, filesystem_1.getFormattedDateTime)();
+        const serviceImportTime = (0, filesystem_1.getFormattedServiceImportTime)();
         // Format notes with timestamp, notes, and services
         let formattedContent = `
 ================================
@@ -101,7 +102,7 @@ ${notesFromMM || '~No notes found in Medimizer~'}
         if (servicesFromMM && servicesFromMM.length > 0) {
             formattedContent += `
 ================================
-IMPORTED SERVICES FROM MM @ ${formattedDateTime}
+IMPORTED SERVICES FROM MM @ ${serviceImportTime}
 ================================
 ${servicesFromMM.join('\n')}
 

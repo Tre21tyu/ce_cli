@@ -32,9 +32,15 @@ async function parseServices(workOrderNumber) {
         }
         // Read the file
         const content = await readFile(mdFilePath, 'utf8');
-        // Extract import timestamp if available
-        const importMatch = content.match(/IMPORTED\s+(?:FROM\s+MM|SERVICES\s+FROM\s+MM)\s+(?:ON|@)\s+([\d-]+\s+(?:at\s+)?[\d:]+)/i);
+        // Find the most recent import timestamp
+        // First look for the IMPORTED SERVICES FROM MM line
+        let importMatch = content.match(/IMPORTED\s+SERVICES\s+FROM\s+MM\s+@\s+([\d-]+\s+(?:at\s+)?[\d:]+)/i);
+        if (!importMatch) {
+            // Fall back to the IMPORTED FROM MM line if no services import found
+            importMatch = content.match(/IMPORTED\s+FROM\s+MM\s+ON\s+([\d-]+\s+(?:at\s+)?[\d:]+)/i);
+        }
         const importTimestamp = importMatch ? importMatch[1] : null;
+        console.log(chalk_1.default.cyan(`Found import timestamp: ${importTimestamp || 'none'}`));
         // Extract services that don't have the (||) marker
         const services = [];
         // Split the content into lines for better processing
@@ -47,9 +53,13 @@ async function parseServices(workOrderNumber) {
             if (line.includes('(||)')) {
                 continue;
             }
-            // Use a simpler regex to match service lines
-            // Format: [Verb] (datetime) => notes or [Verb, Noun] (datetime) => notes
-            const serviceMatch = line.match(/^\s*\[(.*?)(?:,\s*(.*?))?\]\s*(?:\(\d+min\))?\s*\((.*?)\)\s*=>\s*(.*?)\s*$/);
+            // Try different regex patterns to match service lines
+            // Format 1: [Verb, Noun] (datetime) => notes
+            let serviceMatch = line.match(/^\s*\[(.*?)(?:,\s*(.*?))?\]\s*(?:\(\d+min\))?\s*\((.*?)\)\s*=>\s*(.*?)\s*$/);
+            // Format 2: [Verb, Noun] (datetime)=> notes (no space after parenthesis)
+            if (!serviceMatch) {
+                serviceMatch = line.match(/^\s*\[(.*?)(?:,\s*(.*?))?\]\s*(?:\(\d+min\))?\s*\((.*?)\)=>\s*(.*?)\s*$/);
+            }
             if (serviceMatch) {
                 const verb = serviceMatch[1]?.trim() || '';
                 const noun = serviceMatch[2]?.trim();
@@ -82,32 +92,62 @@ async function parseServices(workOrderNumber) {
  * @returns Array of services with calculated time
  */
 function calculateServiceTimes(services, importTimestamp) {
+    if (services.length === 0) {
+        return [];
+    }
+    // Convert import timestamp to Date if available
+    const importDate = importTimestamp ? convertImportTimestampToDate(importTimestamp) : null;
+    console.log(chalk_1.default.blue(`Import timestamp: ${importTimestamp}, converted to: ${importDate?.toISOString() || 'null'}`));
     // Sort services by datetime
     const sortedServices = [...services].sort((a, b) => {
         return convertDatetimeToDate(a.datetime).getTime() - convertDatetimeToDate(b.datetime).getTime();
     });
+    // Log sorted services for debugging
+    sortedServices.forEach((service, i) => {
+        console.log(chalk_1.default.blue(`Sorted service ${i + 1}: ${service.verb}${service.noun ? ', ' + service.noun : ''} - ${service.datetime}`));
+    });
+    // Find the latest service that is still earlier than the import timestamp
+    // This will be our reference point for calculating time differences
+    let latestServiceBeforeImport = -1;
+    if (importDate) {
+        for (let i = sortedServices.length - 1; i >= 0; i--) {
+            const serviceDate = convertDatetimeToDate(sortedServices[i].datetime);
+            if (serviceDate.getTime() <= importDate.getTime()) {
+                latestServiceBeforeImport = i;
+                break;
+            }
+        }
+        console.log(chalk_1.default.blue(`Latest service before import: ${latestServiceBeforeImport === -1 ? 'None' : latestServiceBeforeImport + 1}`));
+    }
     // Calculate time differences
     const servicesWithTime = sortedServices.map((service, index) => {
         const currentDateTime = convertDatetimeToDate(service.datetime);
-        // For the first service, use import timestamp if available
-        if (index === 0) {
-            if (importTimestamp) {
-                const importDate = convertImportTimestampToDate(importTimestamp);
-                const diffMinutes = Math.round((currentDateTime.getTime() - importDate.getTime()) / 60000);
-                return {
-                    ...service,
-                    serviceTimeCalculated: diffMinutes > 0 ? diffMinutes : 0
-                };
-            }
-            return { ...service, serviceTimeCalculated: 0 }; // Default to 0 if no import timestamp
+        console.log(chalk_1.default.blue(`Processing service ${index + 1}: ${service.verb} at ${currentDateTime.toISOString()}`));
+        // If this is the first service after the import timestamp
+        if (importDate && index === latestServiceBeforeImport + 1 && latestServiceBeforeImport !== -1) {
+            // Calculate time from import to this service
+            const diffMinutes = Math.round((currentDateTime.getTime() - importDate.getTime()) / 60000);
+            console.log(chalk_1.default.blue(`First service after import: diff=${diffMinutes} minutes`));
+            return {
+                ...service,
+                serviceTimeCalculated: diffMinutes > 0 ? diffMinutes : 0
+            };
+        }
+        // For the first service overall (when no import timestamp reference exists)
+        else if (index === 0) {
+            console.log(chalk_1.default.blue(`First service overall, no reference point, using 0 minutes`));
+            return { ...service, serviceTimeCalculated: 0 };
         }
         // For subsequent services, use previous service timestamp
-        const prevDateTime = convertDatetimeToDate(sortedServices[index - 1].datetime);
-        const diffMinutes = Math.round((currentDateTime.getTime() - prevDateTime.getTime()) / 60000);
-        return {
-            ...service,
-            serviceTimeCalculated: diffMinutes > 0 ? diffMinutes : 0
-        };
+        else {
+            const prevDateTime = convertDatetimeToDate(sortedServices[index - 1].datetime);
+            const diffMinutes = Math.round((currentDateTime.getTime() - prevDateTime.getTime()) / 60000);
+            console.log(chalk_1.default.blue(`Subsequent service: diff from previous=${diffMinutes} minutes`));
+            return {
+                ...service,
+                serviceTimeCalculated: diffMinutes > 0 ? diffMinutes : 0
+            };
+        }
     });
     return servicesWithTime;
 }
@@ -124,17 +164,37 @@ function convertDatetimeToDate(datetime) {
         let match = datetime.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2})-(\d{2})/);
         if (match) {
             const [_, year, month, day, hours, minutes] = match;
-            return new Date(parseInt(year), parseInt(month) - 1, // JS months are 0-based
+            const date = new Date(parseInt(year), parseInt(month) - 1, // JS months are 0-based
             parseInt(day), parseInt(hours), parseInt(minutes));
+            console.log(chalk_1.default.gray(`Parsed datetime ${datetime} to ${date.toISOString()}`));
+            return date;
         }
         // YYYY-MM-DD HH:MM format
         match = datetime.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
         if (match) {
             const [_, year, month, day, hours, minutes] = match;
-            return new Date(parseInt(year), parseInt(month) - 1, // JS months are 0-based
+            const date = new Date(parseInt(year), parseInt(month) - 1, // JS months are 0-based
             parseInt(day), parseInt(hours), parseInt(minutes));
+            console.log(chalk_1.default.gray(`Parsed datetime ${datetime} to ${date.toISOString()}`));
+            return date;
         }
-        // If we can't parse the datetime, return current date as fallback
+        // Check for MM/DD/YYYY format (from Medimizer)
+        match = datetime.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*([AP]M)/i);
+        if (match) {
+            const [_, month, day, year, hourStr, minutes, ampm] = match;
+            let hours = parseInt(hourStr);
+            // Convert to 24-hour format
+            if (ampm.toUpperCase() === 'PM' && hours < 12) {
+                hours += 12;
+            }
+            else if (ampm.toUpperCase() === 'AM' && hours === 12) {
+                hours = 0;
+            }
+            const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), hours, parseInt(minutes));
+            console.log(chalk_1.default.gray(`Parsed datetime ${datetime} to ${date.toISOString()}`));
+            return date;
+        }
+        // If we can't parse the datetime, log a warning and return current date as fallback
         console.log(chalk_1.default.yellow(`Could not parse datetime: ${datetime}, using current time`));
         return new Date();
     }
@@ -155,17 +215,30 @@ function convertImportTimestampToDate(timestamp) {
         let match = timestamp.match(/(\d{4})-(\d{2})-(\d{2})\s+at\s+(\d{2}):(\d{2})(?::(\d{2}))?/);
         if (match) {
             const [_, year, month, day, hours, minutes, seconds = '0'] = match;
-            return new Date(parseInt(year), parseInt(month) - 1, // JS months are 0-based
+            const date = new Date(parseInt(year), parseInt(month) - 1, // JS months are 0-based
             parseInt(day), parseInt(hours), parseInt(minutes), parseInt(seconds));
+            console.log(chalk_1.default.gray(`Parsed import timestamp ${timestamp} to ${date.toISOString()}`));
+            return date;
         }
         // Try alternative format: YYYY-MM-DD HH:MM
         match = timestamp.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
         if (match) {
             const [_, year, month, day, hours, minutes] = match;
-            return new Date(parseInt(year), parseInt(month) - 1, // JS months are 0-based
+            const date = new Date(parseInt(year), parseInt(month) - 1, // JS months are 0-based
             parseInt(day), parseInt(hours), parseInt(minutes));
+            console.log(chalk_1.default.gray(`Parsed import timestamp ${timestamp} to ${date.toISOString()}`));
+            return date;
         }
-        // If we can't parse the timestamp, return current date as fallback
+        // Try format with @ symbol: YYYY-MM-DD @ HH:MM
+        match = timestamp.match(/(\d{4})-(\d{2})-(\d{2})\s+@\s+(\d{2}):(\d{2})/);
+        if (match) {
+            const [_, year, month, day, hours, minutes] = match;
+            const date = new Date(parseInt(year), parseInt(month) - 1, // JS months are 0-based
+            parseInt(day), parseInt(hours), parseInt(minutes));
+            console.log(chalk_1.default.gray(`Parsed import timestamp ${timestamp} to ${date.toISOString()}`));
+            return date;
+        }
+        // If we can't parse the timestamp, log a warning and return current date as fallback
         console.log(chalk_1.default.yellow(`Could not parse import timestamp: ${timestamp}, using current time`));
         return new Date();
     }
