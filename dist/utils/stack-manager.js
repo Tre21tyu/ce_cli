@@ -177,25 +177,52 @@ Stack is empty. Use the "stack <wo-number>" command to add work orders.
 =============================================================
 `;
             }
-            // Build the header
+            // Calculate summary statistics
+            const totalWorkOrders = stack.length;
+            let totalMinutes = 0;
+            let totalServices = 0;
+            // Count total minutes and services across all work orders
+            stack.forEach(wo => {
+                totalServices += wo.services.length;
+                wo.services.forEach(service => {
+                    totalMinutes += service.serviceTimeCalculated || 0;
+                });
+            });
+            // Convert total minutes to hours:minutes format if it's over 60 minutes
+            const hoursDisplay = totalMinutes >= 60
+                ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m (${totalMinutes} minutes)`
+                : `${totalMinutes} minutes`;
+            // Build the header with summary
             let result = `
 =============================================================
 -----------------------CE_CLI STACK--------------------------
 =============================================================
+
+SUMMARY:
+${chalk_1.default.cyan('Total Work Orders:')} ${chalk_1.default.yellow(totalWorkOrders.toString())}
+${chalk_1.default.cyan('Total Services:')} ${chalk_1.default.yellow(totalServices.toString())}
+${chalk_1.default.cyan('Total Time:')} ${chalk_1.default.yellow(hoursDisplay)}
+
 `;
             // Add each work order
             stack.forEach((wo, index) => {
-                result += `\n${index + 1}. Work Order ${wo.workOrderNumber} (${wo.services.length})`;
+                // Calculate total time for this work order
+                let workOrderMinutes = 0;
+                wo.services.forEach(service => {
+                    workOrderMinutes += service.serviceTimeCalculated || 0;
+                });
+                // Format work order header with its total time
+                result += `${index + 1}. Work Order ${chalk_1.default.cyan(wo.workOrderNumber)} (${wo.services.length} services, ${workOrderMinutes} minutes)`;
                 if (wo.services.length > 0) {
                     wo.services.forEach(service => {
                         // Extract date part from datetime
                         const datePart = service.datetime.split(' ')[0];
                         // Format based on whether there's a noun and include time
                         if (service.noun_code !== undefined) {
-                            result += `\n   - (${datePart}) Verb Code: ${service.verb_code}, Noun Code: ${service.noun_code}, Time: ${service.serviceTimeCalculated || 0}`;
+                            result += `\n   - (${datePart}) Verb Code: ${service.verb_code}, Noun Code: ${service.noun_code}, Time: ${chalk_1.default.yellow((service.serviceTimeCalculated || 0).toString())}`;
                         }
                         else {
-                            result += `\n   - (${datePart}) Verb Code: ${service.verb_code}, Time: ${service.serviceTimeCalculated || 0}`;
+                            result += `\n   - (${datePart}) Verb Code: ${service.verb_code}, Time: ${chalk_1.default.yellow((service.serviceTimeCalculated || 0).toString())}`;
                         }
                     });
                 }

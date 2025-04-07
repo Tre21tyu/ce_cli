@@ -17,6 +17,7 @@ const service_1 = require("./commands/service");
 const close_1 = require("./commands/close");
 const note_1 = require("./commands/note");
 const stack_1 = require("./commands/stack");
+const day_1 = require("./commands/day");
 /**
  * REPL (Read-Eval-Print-Loop) class for interactive CLI
  */
@@ -218,6 +219,7 @@ class CeCliRepl {
                 }
                 break;
             case 'show':
+            case 'details':
                 if (args.length === 0) {
                     console.log(chalk_1.default.red('Error: Work order number is required'));
                     console.log(chalk_1.default.yellow('Usage: details <7-digit-work-order-number>'));
@@ -226,63 +228,6 @@ class CeCliRepl {
                     try {
                         const result = await (0, details_1.getWorkOrderDetails)(args[0]);
                         console.log(result);
-                    }
-                    catch (error) {
-                        if (error instanceof Error) {
-                            console.log(chalk_1.default.red(error.message));
-                        }
-                        else {
-                            console.log(chalk_1.default.red('An unknown error occurred'));
-                        }
-                    }
-                }
-                break;
-            case 'log':
-                if (args.length === 0) {
-                    console.log(chalk_1.default.red('Error: Log name is required'));
-                    console.log(chalk_1.default.yellow('Usage: log <log-name>'));
-                }
-                else {
-                    try {
-                        const logName = args.join(' '); // Combine all args to allow spaces in log name
-                        const result = await (0, log_1.createLog)(logName);
-                        console.log(chalk_1.default.green(result));
-                    }
-                    catch (error) {
-                        if (error instanceof Error) {
-                            console.log(chalk_1.default.red(error.message));
-                        }
-                        else {
-                            console.log(chalk_1.default.red('An unknown error occurred'));
-                        }
-                    }
-                }
-                break;
-            case 'list-logs':
-            case 'logs':
-                try {
-                    const result = await (0, log_1.listLogs)();
-                    console.log(result);
-                }
-                catch (error) {
-                    if (error instanceof Error) {
-                        console.log(chalk_1.default.red(error.message));
-                    }
-                    else {
-                        console.log(chalk_1.default.red('An unknown error occurred'));
-                    }
-                }
-                break;
-            case 'open-log':
-                if (args.length === 0) {
-                    console.log(chalk_1.default.red('Error: Log identifier is required'));
-                    console.log(chalk_1.default.yellow('Usage: open-log <date-or-name>'));
-                }
-                else {
-                    try {
-                        const logIdentifier = args.join(' '); // Combine all args
-                        const result = await (0, log_1.openLog)(logIdentifier);
-                        console.log(chalk_1.default.green(result));
                     }
                     catch (error) {
                         if (error instanceof Error) {
@@ -342,53 +287,6 @@ class CeCliRepl {
                         else {
                             console.log(chalk_1.default.red('An unknown error occurred'));
                         }
-                    }
-                }
-                break;
-            // This is the section to add to the processCommand method in repl.ts
-            case 'stack':
-                if (args.length === 0) {
-                    try {
-                        // If no arguments, display the stack
-                        const result = await (0, stack_1.displayStack)();
-                        console.log(result);
-                    }
-                    catch (error) {
-                        if (error instanceof Error) {
-                            console.log(chalk_1.default.red(error.message));
-                        }
-                        else {
-                            console.log(chalk_1.default.red('An unknown error occurred'));
-                        }
-                    }
-                }
-                else {
-                    try {
-                        // If argument is provided, stack the work order
-                        const result = await (0, stack_1.stackWorkOrder)(args[0]);
-                        console.log(chalk_1.default.green(result));
-                    }
-                    catch (error) {
-                        if (error instanceof Error) {
-                            console.log(chalk_1.default.red(error.message));
-                        }
-                        else {
-                            console.log(chalk_1.default.red('An unknown error occurred'));
-                        }
-                    }
-                }
-                break;
-            case 'clear-stack':
-                try {
-                    const result = await (0, stack_1.clearStack)();
-                    console.log(chalk_1.default.green(result));
-                }
-                catch (error) {
-                    if (error instanceof Error) {
-                        console.log(chalk_1.default.red(error.message));
-                    }
-                    else {
-                        console.log(chalk_1.default.red('An unknown error occurred'));
                     }
                 }
                 break;
@@ -498,8 +396,67 @@ class CeCliRepl {
                     }
                 }
                 break;
+            // New day tracking commands
+            case 'start-day':
+                try {
+                    const result = await (0, day_1.startDay)();
+                    console.log(result);
+                }
+                catch (error) {
+                    if (error instanceof Error) {
+                        console.log(chalk_1.default.red(error.message));
+                    }
+                    else {
+                        console.log(chalk_1.default.red('An unknown error occurred'));
+                    }
+                }
+                break;
+            case 'end-day':
+                try {
+                    const result = await (0, day_1.endDay)();
+                    console.log(result);
+                }
+                catch (error) {
+                    if (error instanceof Error) {
+                        console.log(chalk_1.default.red(error.message));
+                    }
+                    else {
+                        console.log(chalk_1.default.red('An unknown error occurred'));
+                    }
+                }
+                break;
+            case 'day-status':
+                try {
+                    const result = await (0, day_1.dayStatus)();
+                    console.log(result);
+                }
+                catch (error) {
+                    if (error instanceof Error) {
+                        console.log(chalk_1.default.red(error.message));
+                    }
+                    else {
+                        console.log(chalk_1.default.red('An unknown error occurred'));
+                    }
+                }
+                break;
+            case 'days-summary':
+                try {
+                    // Check if there's a numeric argument for number of days
+                    const days = args.length > 0 && !isNaN(parseInt(args[0])) ?
+                        parseInt(args[0]) : 7;
+                    const result = await (0, day_1.daysSummary)(days);
+                    console.log(result);
+                }
+                catch (error) {
+                    if (error instanceof Error) {
+                        console.log(chalk_1.default.red(error.message));
+                    }
+                    else {
+                        console.log(chalk_1.default.red('An unknown error occurred'));
+                    }
+                }
+                break;
             case 'help':
-                // This is the section to add to the displayHelp method in repl.ts
                 this.displayHelp();
                 break;
             case 'clear':
@@ -524,6 +481,8 @@ class CeCliRepl {
      */
     displayHelp() {
         console.log(chalk_1.default.yellow('Available commands:'));
+        // Work order management
+        console.log(chalk_1.default.green('\nWork Order Management:'));
         console.log(chalk_1.default.cyan('  init <wo-number> [control-number]') + ' - Initialize a new work order');
         console.log(chalk_1.default.cyan('  list, ls') + ' - List all existing work orders');
         console.log(chalk_1.default.cyan('  details, show <wo-number>') + ' - Show detailed information for a work order');
@@ -532,18 +491,28 @@ class CeCliRepl {
         console.log(chalk_1.default.cyan('  close <wo-number>') + ' - Close a work order');
         console.log(chalk_1.default.cyan('  note <wo-number>') + ' - Open notes for a work order');
         console.log(chalk_1.default.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
-        console.log(chalk_1.default.cyan('  stack [wo-number]') + ' - Stack a work order or display the stack');
-        console.log(chalk_1.default.cyan('  clear-stack') + ' - Clear the stack');
-        console.log(chalk_1.default.cyan('  help') + ' - Display this help information');
-        console.log(chalk_1.default.cyan('  clear') + ' - Clear the screen');
-        console.log(chalk_1.default.cyan('  exit') + ' - Exit the application');
+        console.log(chalk_1.default.cyan('  open <wo-number>') + ' - Open a work order in Medimizer (browser stays open)');
+        // Day tracking
+        console.log(chalk_1.default.green('\nDay Tracking:'));
+        console.log(chalk_1.default.cyan('  start-day') + ' - Start a new work day');
+        console.log(chalk_1.default.cyan('  end-day') + ' - End the current work day and show summary');
+        console.log(chalk_1.default.cyan('  day-status') + ' - Show status of the current day');
+        console.log(chalk_1.default.cyan('  days-summary [count]') + ' - Show summary of recent days (default: 7)');
+        // Stack management
+        console.log(chalk_1.default.green('\nStack Management:'));
         console.log(chalk_1.default.cyan('  stack [wo-number]') + ' - Add a work order to the stack or display the current stack');
         console.log(chalk_1.default.cyan('  clear-stack') + ' - Clear all work orders from the stack');
+        console.log(chalk_1.default.cyan('  push-stack, push [--dry-run]') + ' - Push services to Medimizer');
+        // Journal logs
+        console.log(chalk_1.default.green('\nJournal Logs:'));
         console.log(chalk_1.default.cyan('  log <log-name>') + ' - Create a new journal log entry');
         console.log(chalk_1.default.cyan('  list-logs, logs') + ' - List all journal log entries');
         console.log(chalk_1.default.cyan('  open-log <date-or-name>') + ' - Open a specific log entry');
-        console.log(chalk_1.default.cyan('  push-stack, push [--dry-run]') + ' - Push services to Medimizer');
-        console.log(chalk_1.default.cyan('  open <wo-number>') + ' - Open a work order in Medimizer (browser stays open)');
+        // General commands
+        console.log(chalk_1.default.green('\nGeneral Commands:'));
+        console.log(chalk_1.default.cyan('  help') + ' - Display this help information');
+        console.log(chalk_1.default.cyan('  clear') + ' - Clear the screen');
+        console.log(chalk_1.default.cyan('  exit') + ' - Exit the application');
     }
 }
 exports.CeCliRepl = CeCliRepl;
