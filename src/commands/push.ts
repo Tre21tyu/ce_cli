@@ -194,6 +194,7 @@ async function simulatePush(stack: any[]): Promise<string> {
  * @param workOrderNumber - Work order number
  * @param service - Service to push
  */
+
 async function pushServiceToMedimizer(
   browser: BrowserAutomation,
   workOrderNumber: string,
