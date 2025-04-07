@@ -4,10 +4,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createWorkOrderDirectory = createWorkOrderDirectory;
+exports.getFormattedDateTime = getFormattedDateTime;
 exports.createNotesFile = createNotesFile;
 exports.getNotesFilePath = getNotesFilePath;
 exports.readNotesFile = readNotesFile;
 exports.writeNotesFile = writeNotesFile;
+exports.appendImportedServicesToNotes = appendImportedServicesToNotes;
 exports.openNotesFile = openNotesFile;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
@@ -59,6 +61,17 @@ async function createWorkOrderDirectory(workOrderNumber) {
     }
 }
 /**
+ * Format the current date and time in a consistent format
+ *
+ * @returns Formatted date and time string (YYYY-MM-DD at HH:MM:SS)
+ */
+function getFormattedDateTime() {
+    const now = new Date();
+    const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const time = now.toTimeString().split(' ')[0]; // HH:MM:SS
+    return `${date} at ${time}`;
+}
+/**
  * Create an initial notes markdown file for a work order
  *
  * @param workOrderNumber - 7-digit work order number
@@ -76,10 +89,10 @@ async function createNotesFile(workOrderNumber) {
         const notesFilePath = path_1.default.join(workOrderDir, `${workOrderNumber}_notes.md`);
         // Only create the file if it doesn't exist
         if (!fs_1.default.existsSync(notesFilePath)) {
-            const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+            const formattedDateTime = getFormattedDateTime();
             const initialContent = `
 ================================
-IMPORTED FROM MM ON ${currentDate}
+IMPORTED FROM MM ON ${formattedDateTime}
 ================================
 
 ~Notes~
@@ -155,6 +168,45 @@ async function writeNotesFile(workOrderNumber, content) {
         }
         else {
             throw new Error('Failed to write notes file: Unknown error');
+        }
+    }
+}
+/**
+ * Append imported services template with timestamp to notes file
+ *
+ * @param workOrderNumber - 7-digit work order number
+ * @param services - Array of service strings to append
+ * @returns A promise that resolves when the file has been updated
+ */
+async function appendImportedServicesToNotes(workOrderNumber, services) {
+    try {
+        // Get current content
+        const currentContent = await readNotesFile(workOrderNumber);
+        // Create timestamp
+        const formattedDateTime = getFormattedDateTime();
+        // Create services section with timestamp
+        let servicesSection = `
+================================
+IMPORTED SERVICES FROM MM @ ${formattedDateTime}
+================================
+`;
+        if (services.length > 0) {
+            servicesSection += `${services.join('\n')}\n\n`;
+        }
+        else {
+            servicesSection += 'No services found\n\n';
+        }
+        // Append to content
+        const updatedContent = currentContent + servicesSection;
+        // Write updated content
+        await writeNotesFile(workOrderNumber, updatedContent);
+    }
+    catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to append imported services: ${error.message}`);
+        }
+        else {
+            throw new Error('Failed to append imported services: Unknown error');
         }
     }
 }

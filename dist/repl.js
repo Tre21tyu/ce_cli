@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CeCliRepl = void 0;
 const inquirer_1 = __importDefault(require("inquirer"));
 const chalk_1 = __importDefault(require("chalk"));
+const open_1 = require("./commands/open");
 const push_1 = require("./commands/push");
 const log_1 = require("./commands/log");
 const banner_1 = require("./utils/banner");
@@ -95,6 +96,26 @@ class CeCliRepl {
                         const workOrderNumber = args[0];
                         const controlNumber = args.length > 1 ? args[1] : undefined;
                         const result = await (0, init_enhanced_1.initWorkOrder)(workOrderNumber, controlNumber);
+                        console.log(chalk_1.default.green(result));
+                    }
+                    catch (error) {
+                        if (error instanceof Error) {
+                            console.log(chalk_1.default.red(error.message));
+                        }
+                        else {
+                            console.log(chalk_1.default.red('An unknown error occurred'));
+                        }
+                    }
+                }
+                break;
+            case 'open':
+                if (args.length === 0) {
+                    console.log(chalk_1.default.red('Error: Work order number is required'));
+                    console.log(chalk_1.default.yellow('Usage: open <7-digit-work-order-number>'));
+                }
+                else {
+                    try {
+                        const result = await (0, open_1.openWorkOrder)(args[0]);
                         console.log(chalk_1.default.green(result));
                     }
                     catch (error) {
@@ -522,6 +543,7 @@ class CeCliRepl {
         console.log(chalk_1.default.cyan('  list-logs, logs') + ' - List all journal log entries');
         console.log(chalk_1.default.cyan('  open-log <date-or-name>') + ' - Open a specific log entry');
         console.log(chalk_1.default.cyan('  push-stack, push [--dry-run]') + ' - Push services to Medimizer');
+        console.log(chalk_1.default.cyan('  open <wo-number>') + ' - Open a work order in Medimizer (browser stays open)');
     }
 }
 exports.CeCliRepl = CeCliRepl;

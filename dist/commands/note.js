@@ -87,13 +87,11 @@ async function importNotes(workOrderNumber) {
         // Print services count for debugging
         console.log(chalk_1.default.yellow(`Found ${servicesFromMM.length} services to import`));
         // Get current date for timestamp
-        const currentDate = new Date();
-        const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
-        const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
+        const formattedDateTime = (0, filesystem_1.getFormattedDateTime)();
         // Format notes with timestamp, notes, and services
         let formattedContent = `
 ================================
-IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
+IMPORTED FROM MM ON ${formattedDateTime}
 ================================
 
 ${notesFromMM || '~No notes found in Medimizer~'}
@@ -103,7 +101,7 @@ ${notesFromMM || '~No notes found in Medimizer~'}
         if (servicesFromMM && servicesFromMM.length > 0) {
             formattedContent += `
 ================================
-IMPORTED SERVICES FROM MM
+IMPORTED SERVICES FROM MM @ ${formattedDateTime}
 ================================
 ${servicesFromMM.join('\n')}
 
@@ -136,14 +134,19 @@ function parseServicesFromNotes(notes) {
     const services = [];
     // Regular expression to match service patterns
     // Matches [Verb, Noun] => Description or [Verb] => Description
-    const serviceRegex = /\[(.*?)(?:,\s*(.*?))?\]\s*=>\s*(.*?)(?:\n|$)/g;
+    const serviceRegex = /\[(.*?)(?:,\s*(.*?))?\]\s*(?:\(\d+min\))?\s*\((.*?)\)\s*=>\s*(.*?)(?:\n|$)/g;
     let match;
     while ((match = serviceRegex.exec(notes)) !== null) {
         const verb = match[1]?.trim() || '';
         const noun = match[2]?.trim() || '';
-        const description = match[3]?.trim() || '';
+        const datetime = match[3]?.trim() || '';
+        const description = match[4]?.trim() || '';
         if (verb) {
-            services.push({ verb, noun, description });
+            services.push({
+                verb,
+                noun,
+                description,
+            });
         }
     }
     return services;

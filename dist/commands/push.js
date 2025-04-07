@@ -4,6 +4,40 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.pushStack = pushStack;
+/**
+ * Compare time values to see if they're equivalent, ignoring formatting differences
+ *
+ * @param actual - Actual time value from the form
+ * @param expected - Expected time value
+ * @returns True if time values are equivalent
+ */
+function compareTimeValues(actual, expected) {
+    try {
+        // Extract numbers and AM/PM from both strings
+        const actualNumbers = actual.replace(/[^0-9]/g, '');
+        const expectedNumbers = expected.replace(/[^0-9]/g, '');
+        const actualHasAM = actual.toLowerCase().includes('am');
+        const actualHasPM = actual.toLowerCase().includes('pm');
+        const expectedHasAM = expected.toLowerCase().includes('am');
+        const expectedHasPM = expected.toLowerCase().includes('pm');
+        // Special case - compact format might be missing leading zeros
+        if (expected.match(/^\d{3,4}(am|pm)$/i)) {
+            // For compact format like "800am" or "1118pm"
+            const numbers = expected.replace(/[^0-9]/g, '');
+            if (numbers === actualNumbers) {
+                return (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
+            }
+        }
+        // Check if the numeric parts match and AM/PM matches
+        const numbersMatch = actualNumbers.includes(expectedNumbers) || expectedNumbers.includes(actualNumbers);
+        const amPmMatch = (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
+        return numbersMatch && amPmMatch;
+    }
+    catch (error) {
+        console.log(chalk_1.default.yellow(`Error comparing time values: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return false;
+    }
+}
 const chalk_1 = __importDefault(require("chalk"));
 const stack_manager_1 = require("../utils/stack-manager");
 const browser_enhanced_1 = require("../utils/browser-enhanced");
@@ -175,10 +209,57 @@ async function pushServiceToMedimizer(browser, workOrderNumber, service) {
         const [datePart, timePart] = parseDatetime(service.datetime);
         // Enter Date
         await enterTextWithRetry(browser, '#ContentPlaceHolder1_pagService_datCompletedOn_I', datePart);
-        // Enter Time
-        await enterTextWithRetry(browser, '#ContentPlaceHolder1_pagService_timCompletedOn_I', timePart);
+        // Press Enter after entering date
+        await browser.page.keyboard.press('Enter');
+        // Enter Time - simplified format with no colon or space
+        // Format time as "800am" or "1118pm" and press Enter
+        const timeFormatted = formatTimeForInput(timePart);
+        await enterTextWithRetry(browser, '#ContentPlaceHolder1_pagService_timCompletedOn_I', timeFormatted);
+        // Press Enter after entering time
+        await browser.page.keyboard.press('Enter');
         // Enter Time Used (0 for now)
-        await enterTextWithRetry(browser, '#ContentPlaceHolder1_pagService_meTime_I', '0');
+        // Try multiple possible selectors for the time used field
+        const timeUsedSelectors = [
+            '#ContentPlaceHolder1_pagService_meTime_I',
+            '#ContentPlaceHolder1_pagService_txtTime_I',
+            'input[name="ctl00$ContentPlaceHolder1$pagService$meTime"]'
+        ];
+        let timeFieldFound = false;
+        for (const selector of timeUsedSelectors) {
+            try {
+                const exists = await browser.page.waitForSelector(selector, {
+                    visible: true,
+                    timeout: 2000
+                }).then(() => true).catch(() => false);
+                if (exists) {
+                    await enterTextWithRetry(browser, selector, '0');
+                    // Press Enter after entering time used
+                    await browser.page.keyboard.press('Enter');
+                    timeFieldFound = true;
+                    break;
+                }
+            }
+            catch (error) {
+                console.log(chalk_1.default.yellow(`Time used selector ${selector} not found, trying next...`));
+            }
+        }
+        if (!timeFieldFound) {
+            console.log(chalk_1.default.yellow('Could not find time used field, continuing anyway...'));
+            // Take screenshot for debugging
+            await browser.takeScreenshot('time_field_not_found');
+        }
+        // Enter Employee (LPOLLOCK) - last field before submission
+        const employeeSelector = '#ContentPlaceHolder1_pagService_cboEmployees_I';
+        try {
+            await enterTextWithRetry(browser, employeeSelector, 'LPOLLOCK');
+            // Press Enter after entering employee
+            await browser.page.keyboard.press('Enter');
+            console.log(chalk_1.default.green('Successfully entered employee information'));
+        }
+        catch (error) {
+            console.log(chalk_1.default.yellow(`Could not enter employee information: ${error instanceof Error ? error.message : 'Unknown error'}`));
+            // Continue anyway - the field might have a default value
+        }
         // Screenshot before submission
         await browser.page.screenshot({ path: browser.getScreenshotPath('before_service_submit'), fullPage: true });
         // Submit the form
@@ -227,14 +308,34 @@ async function enterTextWithRetry(browser, selector, text) {
             await browser.page.waitForSelector(selector, { visible: true, timeout: 5000 });
             // Click to focus and clear existing content
             await browser.page.click(selector, { clickCount: 3 });
+            await browser.page.keyboard.press('Backspace'); // Ensure field is cleared
+            // Wait a bit before typing (some forms need this delay)
+            await new Promise(resolve => setTimeout(resolve, 200));
             // Type the text
             await browser.page.type(selector, text, { delay: 50 });
+            // Wait a bit to allow form to process the input
+            await new Promise(resolve => setTimeout(resolve, 200));
             // Verify text was entered
             const enteredText = await browser.page.evaluate((sel) => {
                 const input = document.querySelector(sel);
                 return input ? input.value : '';
             }, selector);
-            if (enteredText.includes(text)) {
+            // For time fields, AM/PM might be automatically set by the form,
+            // so we check if the text is contained rather than exact match
+            if (text.includes(':') || text.toLowerCase().includes('am') || text.toLowerCase().includes('pm')) {
+                // For time fields, check if the important parts match
+                const timeMatch = compareTimeValues(enteredText, text);
+                if (timeMatch) {
+                    success = true;
+                    console.log(chalk_1.default.green(`Successfully entered time value similar to "${text}" into ${selector}`));
+                }
+                else {
+                    console.log(chalk_1.default.yellow(`Failed to enter time correctly. Expected "${text}", got "${enteredText}". Retrying...`));
+                    retries++;
+                }
+            }
+            else if (enteredText.includes(text) || text.includes(enteredText)) {
+                // For other fields, check if the text is contained
                 success = true;
                 console.log(chalk_1.default.green(`Successfully entered "${text}" into ${selector}`));
             }
@@ -323,11 +424,30 @@ async function verifyServiceAdded(browser, workOrderNumber, service) {
     }
 }
 /**
- * Parse datetime string into MM/DD/YYYY and HH:MM AM/PM format
+ * Format time from "HH:MM AM/PM" to compact format "HHMMam/pm" for input fields
  *
- * @param datetime - Datetime string in format "YYYY-MM-DD HH:MM" or "YYYY-MM-DD HH-MM"
- * @returns Tuple of [datePart, timePart]
+ * @param timeString - Time string in format "HH:MM AM/PM"
+ * @returns Formatted time string like "800am" or "1118pm"
  */
+function formatTimeForInput(timeString) {
+    try {
+        // Extract hours, minutes, and period (AM/PM)
+        const matches = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!matches) {
+            console.log(chalk_1.default.yellow(`Could not parse time string: ${timeString}, using as is`));
+            return timeString;
+        }
+        const hours = parseInt(matches[1], 10);
+        const minutes = matches[2];
+        const period = matches[3].toLowerCase();
+        // Combine without colon or space
+        return `${hours}${minutes}${period}`;
+    }
+    catch (error) {
+        console.log(chalk_1.default.yellow(`Error formatting time: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return timeString;
+    }
+}
 function parseDatetime(datetime) {
     try {
         // Split datetime into date and time parts

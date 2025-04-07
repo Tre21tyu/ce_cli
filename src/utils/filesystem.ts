@@ -54,6 +54,18 @@ export async function createWorkOrderDirectory(workOrderNumber: string): Promise
 }
 
 /**
+ * Format the current date and time in a consistent format
+ * 
+ * @returns Formatted date and time string (YYYY-MM-DD at HH:MM:SS)
+ */
+export function getFormattedDateTime(): string {
+  const now = new Date();
+  const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const time = now.toTimeString().split(' ')[0]; // HH:MM:SS
+  return `${date} at ${time}`;
+}
+
+/**
  * Create an initial notes markdown file for a work order
  * 
  * @param workOrderNumber - 7-digit work order number
@@ -74,10 +86,10 @@ export async function createNotesFile(workOrderNumber: string): Promise<string> 
     
     // Only create the file if it doesn't exist
     if (!fs.existsSync(notesFilePath)) {
-      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const formattedDateTime = getFormattedDateTime();
       const initialContent = `
 ================================
-IMPORTED FROM MM ON ${currentDate}
+IMPORTED FROM MM ON ${formattedDateTime}
 ================================
 
 ~Notes~
@@ -154,6 +166,51 @@ export async function writeNotesFile(workOrderNumber: string, content: string): 
       throw new Error(`Failed to write notes file: ${error.message}`);
     } else {
       throw new Error('Failed to write notes file: Unknown error');
+    }
+  }
+}
+
+/**
+ * Append imported services template with timestamp to notes file
+ * 
+ * @param workOrderNumber - 7-digit work order number
+ * @param services - Array of service strings to append
+ * @returns A promise that resolves when the file has been updated
+ */
+export async function appendImportedServicesToNotes(
+  workOrderNumber: string,
+  services: string[]
+): Promise<void> {
+  try {
+    // Get current content
+    const currentContent = await readNotesFile(workOrderNumber);
+    
+    // Create timestamp
+    const formattedDateTime = getFormattedDateTime();
+    
+    // Create services section with timestamp
+    let servicesSection = `
+================================
+IMPORTED SERVICES FROM MM @ ${formattedDateTime}
+================================
+`;
+
+    if (services.length > 0) {
+      servicesSection += `${services.join('\n')}\n\n`;
+    } else {
+      servicesSection += 'No services found\n\n';
+    }
+    
+    // Append to content
+    const updatedContent = currentContent + servicesSection;
+    
+    // Write updated content
+    await writeNotesFile(workOrderNumber, updatedContent);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to append imported services: ${error.message}`);
+    } else {
+      throw new Error('Failed to append imported services: Unknown error');
     }
   }
 }

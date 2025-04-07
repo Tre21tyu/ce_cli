@@ -805,12 +805,6 @@ class BrowserAutomation {
     }
     /**
      * Format a service string from Medimizer format to markdown format
-     *
-     * @param serviceString - Raw service string from Medimizer
-     * @returns Formatted service string in markdown format
-     */
-    /**
-     * Format a service string from Medimizer format to markdown format
      * Ensures exactly one comma between Verb and Noun
      *
      * @param serviceString - Raw service string from Medimizer
@@ -913,7 +907,8 @@ class BrowserAutomation {
                 formattedDescription = `[${description}]`;
             }
             // Combine everything into the final format
-            return `${formattedDescription} (${duration}min) (${formattedDate} ${formattedTime}) => (||)`;
+            // Note: We don't include the duration in the markdown as it will be calculated automatically
+            return `${formattedDescription} (${formattedDate} ${formattedTime}) => (||)`;
         }
         catch (error) {
             console.log(chalk_1.default.yellow(`Error formatting service: ${serviceString}`));

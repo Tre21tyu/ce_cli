@@ -92,12 +92,12 @@ class StackManager {
                 throw new Error(`Work order ${workOrderNumber} not found in database`);
             }
             // Parse services from the work order's markdown file
-            const parsedServices = await (0, service_parser_1.parseServices)(workOrderNumber);
-            if (parsedServices.length === 0) {
+            const { services, importTimestamp } = await (0, service_parser_1.parseServices)(workOrderNumber);
+            if (services.length === 0) {
                 return `No services found to add for work order ${workOrderNumber}`;
             }
             // Convert the parsed services to stackable services
-            const stackableServices = await (0, service_parser_1.convertToStackableServices)(parsedServices);
+            const stackableServices = await (0, service_parser_1.convertToStackableServices)(services, importTimestamp);
             if (stackableServices.length === 0) {
                 return `No valid services found for work order ${workOrderNumber}`;
             }
@@ -190,12 +190,12 @@ Stack is empty. Use the "stack <wo-number>" command to add work orders.
                     wo.services.forEach(service => {
                         // Extract date part from datetime
                         const datePart = service.datetime.split(' ')[0];
-                        // Format based on whether there's a noun
+                        // Format based on whether there's a noun and include time
                         if (service.noun_code !== undefined) {
-                            result += `\n   - (${datePart}) Verb Code: ${service.verb_code}, Noun Code: ${service.noun_code}`;
+                            result += `\n   - (${datePart}) Verb Code: ${service.verb_code}, Noun Code: ${service.noun_code}, Time: ${service.serviceTimeCalculated || 0}`;
                         }
                         else {
-                            result += `\n   - (${datePart}) Verb Code: ${service.verb_code}`;
+                            result += `\n   - (${datePart}) Verb Code: ${service.verb_code}, Time: ${service.serviceTimeCalculated || 0}`;
                         }
                     });
                 }

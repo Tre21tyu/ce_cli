@@ -1,5 +1,5 @@
 import { WorkDatabase } from '../database';
-import { createNotesFile, readNotesFile, writeNotesFile } from '../utils/filesystem';
+import { createNotesFile, readNotesFile, writeNotesFile, getFormattedDateTime } from '../utils/filesystem';
 import { openNotesInNvim } from '../utils/editor';
 import { BrowserAutomation } from '../utils/browser-enhanced';
 import chalk from 'chalk';
@@ -47,6 +47,7 @@ export async function openNotes(workOrderNumber: string): Promise<string> {
     }
   }
 }
+
 /**
  * Import notes and services from Medimizer for a work order
  * 
@@ -92,14 +93,12 @@ export async function importNotes(workOrderNumber: string): Promise<string> {
     console.log(chalk.yellow(`Found ${servicesFromMM.length} services to import`));
 
     // Get current date for timestamp
-    const currentDate = new Date();
-    const formattedDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
-    const formattedTime = currentDate.toTimeString().split(' ')[0]; // HH:MM:SS
+    const formattedDateTime = getFormattedDateTime();
 
     // Format notes with timestamp, notes, and services
     let formattedContent = `
 ================================
-IMPORTED FROM MM ON ${formattedDate} at ${formattedTime}
+IMPORTED FROM MM ON ${formattedDateTime}
 ================================
 
 ${notesFromMM || '~No notes found in Medimizer~'}
@@ -110,7 +109,7 @@ ${notesFromMM || '~No notes found in Medimizer~'}
     if (servicesFromMM && servicesFromMM.length > 0) {
       formattedContent += `
 ================================
-IMPORTED SERVICES FROM MM
+IMPORTED SERVICES FROM MM @ ${formattedDateTime}
 ================================
 ${servicesFromMM.join('\n')}
 
@@ -134,6 +133,7 @@ ${servicesFromMM.join('\n')}
     }
   }
 }
+
 /**
  * Parse services from notes
  * Looks for patterns like [Verb, Noun] => Description
@@ -146,16 +146,21 @@ export function parseServicesFromNotes(notes: string): Array<{verb: string, noun
   
   // Regular expression to match service patterns
   // Matches [Verb, Noun] => Description or [Verb] => Description
-  const serviceRegex = /\[(.*?)(?:,\s*(.*?))?\]\s*=>\s*(.*?)(?:\n|$)/g;
+  const serviceRegex = /\[(.*?)(?:,\s*(.*?))?\]\s*(?:\(\d+min\))?\s*\((.*?)\)\s*=>\s*(.*?)(?:\n|$)/g;
   
   let match;
   while ((match = serviceRegex.exec(notes)) !== null) {
     const verb = match[1]?.trim() || '';
     const noun = match[2]?.trim() || '';
-    const description = match[3]?.trim() || '';
+    const datetime = match[3]?.trim() || '';
+    const description = match[4]?.trim() || '';
     
     if (verb) {
-      services.push({ verb, noun, description });
+      services.push({ 
+        verb, 
+        noun, 
+        description,
+      });
     }
   }
   
