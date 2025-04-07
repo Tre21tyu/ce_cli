@@ -187,7 +187,6 @@ async function simulatePush(stack: any[]): Promise<string> {
   
   return `Simulation complete. Would push ${totalServices} service(s) to Medimizer.`;
 }
-
 /**
  * Push a service to Medimizer using browser automation
  * 
@@ -272,11 +271,19 @@ async function pushServiceToMedimizer(
     // Press Enter after entering time
     await browser.page.keyboard.press('Enter');
     
-    // Enter Time Used (0 for now)
+    // Enter Time Used from the calculated service time
+    // Use the time we've calculated rather than a default of 0
+    const timeUsed = service.serviceTimeCalculated !== undefined ? 
+      service.serviceTimeCalculated.toString() : '0';
+    
+    console.log(chalk.cyan(`Using calculated time: ${timeUsed} minutes for service`));
+    
     // Try multiple possible selectors for the time used field
     const timeUsedSelectors = [
+      '#ContentPlaceHolder1_pagService_cbpRateInfo_spnTimeUsed_I', // New selector based on HTML
       '#ContentPlaceHolder1_pagService_meTime_I',
       '#ContentPlaceHolder1_pagService_txtTime_I',
+      'input[name="ctl00$ContentPlaceHolder1$pagService$cbpRateInfo$spnTimeUsed"]', // Name-based selector
       'input[name="ctl00$ContentPlaceHolder1$pagService$meTime"]'
     ];
     
@@ -289,10 +296,11 @@ async function pushServiceToMedimizer(
         }).then(() => true).catch(() => false);
         
         if (exists) {
-          await enterTextWithRetry(browser, selector, '0');
+          await enterTextWithRetry(browser, selector, timeUsed);
           // Press Enter after entering time used
           await browser.page.keyboard.press('Enter');
           timeFieldFound = true;
+          console.log(chalk.green(`Found time field with selector: ${selector}`));
           break;
         }
       } catch (error) {
