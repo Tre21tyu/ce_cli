@@ -1,5 +1,5 @@
 import { WorkDatabase } from '../database';
-import { createNotesFile, readNotesFile, writeNotesFile, getFormattedDateTime } from '../utils/filesystem';
+import { createNotesFile, readNotesFile, writeNotesFile, getFormattedDateTime, getFormattedServiceImportTime } from '../utils/filesystem';
 import { openNotesInNvim } from '../utils/editor';
 import { BrowserAutomation } from '../utils/browser-enhanced';
 import chalk from 'chalk';
@@ -92,8 +92,9 @@ export async function importNotes(workOrderNumber: string): Promise<string> {
     // Print services count for debugging
     console.log(chalk.yellow(`Found ${servicesFromMM.length} services to import`));
 
-    // Get current date for timestamp
+    // Get formatted timestamps
     const formattedDateTime = getFormattedDateTime();
+    const serviceImportTime = getFormattedServiceImportTime();
 
     // Format notes with timestamp, notes, and services
     let formattedContent = `
@@ -109,7 +110,7 @@ ${notesFromMM || '~No notes found in Medimizer~'}
     if (servicesFromMM && servicesFromMM.length > 0) {
       formattedContent += `
 ================================
-IMPORTED SERVICES FROM MM @ ${formattedDateTime}
+IMPORTED SERVICES FROM MM @ ${serviceImportTime}
 ================================
 ${servicesFromMM.join('\n')}
 

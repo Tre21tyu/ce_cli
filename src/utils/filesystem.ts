@@ -66,6 +66,19 @@ export function getFormattedDateTime(): string {
 }
 
 /**
+ * Format the current date and time for service imports
+ * 
+ * @returns Formatted date and time string for services import (YYYY-MM-DD HH:MM)
+ */
+export function getFormattedServiceImportTime(): string {
+  const now = new Date();
+  const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const hours = now.getHours().toString().padStart(2, '0');
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+  return `${date} ${hours}:${minutes}`;
+}
+
+/**
  * Create an initial notes markdown file for a work order
  * 
  * @param workOrderNumber - 7-digit work order number
