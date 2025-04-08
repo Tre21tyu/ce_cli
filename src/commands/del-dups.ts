@@ -295,11 +295,179 @@ function findDuplicateGroups(services: ServiceRecord[]): DuplicateGroup[] {
 }
 
 /**
- * Delete a service by its row ID with improved dialog handling
+ * Handle the custom confirmation dialog by specifically targeting the OK button
  * 
  * @param browser - Browser automation instance
- * @param rowId - Row ID of the service to delete
- * @returns True if successful, false otherwise
+ * @returns True if button was clicked successfully
+ */
+async function handleConfirmationDialog(browser: BrowserAutomation): Promise<boolean> {
+  if (!browser.page) {
+    throw new Error('Browser page not initialized');
+  }
+  
+  try {
+    console.log(chalk.yellow('Handling confirmation dialog...'));
+    
+    // Wait for the dialog to appear
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Take a screenshot of the dialog for debugging
+    await browser.takeScreenshot('confirmation_dialog');
+    
+    // Directly target the OK button based on your screenshot
+    // Exact selector for the blue OK button visible in your screenshot
+    const success = await browser.page.evaluate(() => {
+      // Try various methods to find and click the OK button
+      
+      // Method 1: Try clicking by CSS class (visible in your screenshot)
+      const okButtonByClass = document.querySelector('.dxbButton_Aqua');
+      if (okButtonByClass) {
+        console.log('Found OK button by class .dxbButton_Aqua');
+        (okButtonByClass as HTMLElement).click();
+        return true;
+      }
+      
+      // Method 2: Try clicking by element ID
+      const okButtonById = document.querySelector('#OK, #OK_CD');
+      if (okButtonById) {
+        console.log('Found OK button by ID');
+        (okButtonById as HTMLElement).click();
+        return true;
+      }
+      
+      // Method 3: Find buttons in any dialog-like container
+      const dialogContainers = document.querySelectorAll('.dxpcContentWrapper, .dxpcLite, .ui-dialog-content');
+      for (const container of Array.from(dialogContainers)) {
+        const buttons = container.querySelectorAll('button, input[type="button"]');
+        for (const button of Array.from(buttons)) {
+          // If button text is OK, or it's the first/leftmost button
+          if (button.textContent?.trim() === 'OK' || 
+              button.getAttribute('value') === 'OK') {
+            console.log('Found OK button in dialog container');
+            (button as HTMLElement).click();
+            return true;
+          }
+        }
+        
+        // If we found a container but no specific OK button, click the first button
+        if (buttons.length > 0) {
+          console.log('Clicking first button in dialog container');
+          (buttons[0] as HTMLElement).click();
+          return true;
+        }
+      }
+      
+      // Method 4: Find any element with OK text
+      const okElements = Array.from(document.querySelectorAll('*')).filter(el => 
+        el.textContent?.trim() === 'OK'
+      );
+      
+      if (okElements.length > 0) {
+        console.log('Found element with OK text');
+        (okElements[0] as HTMLElement).click();
+        return true;
+      }
+      
+      // Method 5: Look for elements inside the specific dialog shown in screenshot
+      // The screenshot shows a white dialog box with blue OK button
+      const visibleButtons = Array.from(document.querySelectorAll('button, input[type="button"]')).filter(el => {
+        const style = window.getComputedStyle(el);
+        // Only consider visible buttons
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      });
+      
+      // Click the first visible button we find
+      if (visibleButtons.length > 0) {
+        console.log('Clicking first visible button');
+        (visibleButtons[0] as HTMLElement).click();
+        return true;
+      }
+      
+      console.log('Could not find OK button by any method');
+      return false;
+    });
+    
+    if (!success) {
+      console.log(chalk.yellow('Could not find OK button with JavaScript, trying Puppeteer click methods...'));
+      
+      // If JavaScript methods failed, try Puppeteer's click methods with specific coordinates
+      
+      // Method 1: Try clicking specific coordinates where OK button appears based on screenshot
+      // This targets the blue OK button in the dialog
+      try {
+        // First try to get the viewport size to calculate center
+        const viewportSize = await browser.page.viewport();
+        if (viewportSize) {
+          // Assume dialog is centered - click center-right where OK button would be
+          // These values are estimates based on your screenshot
+          const x = Math.floor(viewportSize.width / 2) + 50; // Slightly to the right of center
+          const y = Math.floor(viewportSize.height / 2) + 25; // Slightly below center
+          
+          console.log(chalk.yellow(`Trying to click at coordinates: x=${x}, y=${y}`));
+          await browser.page.mouse.click(x, y);
+          
+          // Wait to see if click had effect
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Take screenshot after click
+          await browser.takeScreenshot('after_coordinate_click');
+        }
+      } catch (error) {
+        console.log(chalk.yellow(`Error clicking coordinates: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      }
+      
+      // Method 2: Try to find and click on specific selectors that might be part of the button
+      const buttonSelectors = [
+        'div.dxbButton_Aqua',
+        'div.dxbButtonHover_Aqua',
+        'div[id*="OK"]',
+        'div.dxpcFooter .dxbButton',
+        'div.dxbButton',
+        'button[onclick*="OK"]'
+      ];
+      
+      for (const selector of buttonSelectors) {
+        try {
+          const element = await browser.page.$(selector);
+          if (element) {
+            console.log(chalk.yellow(`Found element with selector: ${selector}`));
+            await element.click();
+            break;
+          }
+        } catch (error) {
+          // Continue to next selector
+        }
+      }
+      
+      // Method 3: As a last resort, press Enter key
+      console.log(chalk.yellow('As last resort, pressing Enter key...'));
+      await browser.page.keyboard.press('Enter');
+    }
+    
+    // Wait after attempting to click OK
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Check if dialog is still visible
+    const dialogStillVisible = await browser.page.evaluate(() => {
+      const dialog = document.querySelector('.dxpcModalBackLite, .dxpcContentWrapper, .ui-dialog');
+      return !!dialog && window.getComputedStyle(dialog).display !== 'none';
+    });
+    
+    if (dialogStillVisible) {
+      console.log(chalk.red('Dialog still visible after clicking, dialog was not closed'));
+      return false;
+    }
+    
+    console.log(chalk.green('Successfully closed confirmation dialog'));
+    return true;
+  } catch (error) {
+    console.log(chalk.red(`Error handling confirmation dialog: ${error instanceof Error ? error.message : 'Unknown error'}`));
+    return false;
+  }
+}
+
+/**
+ * Improved delete service function that correctly handles the dialog
  */
 async function deleteService(browser: BrowserAutomation, rowId: string): Promise<boolean> {
   if (!browser.page) {
@@ -385,79 +553,11 @@ async function deleteService(browser: BrowserAutomation, rowId: string): Promise
       return false;
     }
     
-    // 3. Handle the custom confirmation dialog
-    console.log(chalk.yellow('Waiting for confirmation dialog...'));
+    // 3. Handle the custom confirmation dialog with our specialized function
+    const dialogHandled = await handleConfirmationDialog(browser);
     
-    // Wait for the dialog to appear
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Take screenshot of dialog
-    await browser.takeScreenshot(`delete_dialog_${rowId}`);
-    
-    // Look for the OK button in the custom dialog
-    const okButtonFound = await browser.page.evaluate(() => {
-      // First try to find by exact ID (if we can find it from the screenshot)
-      const okButton = document.querySelector('#OK_CD, #OK, button:contains("OK")');
-      
-      if (okButton) {
-        (okButton as HTMLElement).click();
-        return true;
-      }
-      
-      // Try finding by text content
-      const buttons = Array.from(document.querySelectorAll('input, button, a, span'));
-      const confirmButton = buttons.find(el => 
-        el.textContent?.trim() === 'OK' || 
-        el.getAttribute('value')?.trim() === 'OK'
-      );
-      
-      if (confirmButton) {
-        (confirmButton as HTMLElement).click();
-        return true;
-      }
-      
-      // If we still can't find it, look for any button in a dialog-like container
-      const dialogButtons = document.querySelectorAll('.dxpc-content button, .dxpc-content input[type="button"]');
-      if (dialogButtons.length > 0) {
-        // Click the first button (assuming it's the OK/confirm button)
-        (dialogButtons[0] as HTMLElement).click();
-        return true;
-      }
-      
-      return false;
-    });
-    
-    if (!okButtonFound) {
-      console.log(chalk.yellow('OK button not found in dialog, trying more specific approach...'));
-      
-      // Based on the screenshot, try more specific selectors for this particular dialog
-      const dialogOkButtonSelectors = [
-        '.ui-dialog-buttonset button:first-child',
-        '.ui-dialog button:first-child',
-        '.dxpcModalBackLite + div button',
-        '.dxpcLite button',
-        'button.dxbButton_Aqua',
-        'div:contains("Are you sure") + div button',
-        'div[role="dialog"] button',
-        '#OK_CD'
-      ];
-      
-      for (const selector of dialogOkButtonSelectors) {
-        try {
-          const selectorExists = await browser.page.$(selector);
-          if (selectorExists) {
-            console.log(chalk.yellow(`Found dialog OK button with selector: ${selector}`));
-            await browser.page.click(selector);
-            break;
-          }
-        } catch (error) {
-          // Continue to next selector
-        }
-      }
-      
-      // If still not found, try pressing Enter key as a last resort
-      console.log(chalk.yellow('Pressing Enter key as last resort...'));
-      await browser.page.keyboard.press('Enter');
+    if (!dialogHandled) {
+      console.log(chalk.red('Failed to handle confirmation dialog'));
     }
     
     // Wait for the page to update after confirmation
@@ -473,27 +573,7 @@ async function deleteService(browser: BrowserAutomation, rowId: string): Promise
     
     if (rowStillExists) {
       console.log(chalk.red(`Row ${rowId} still exists after deletion attempt`));
-      
-      // One more try with exact OK button selector based on the screenshot you provided
-      await browser.page.evaluate(() => {
-        const okButton = document.querySelector('.dxbButton_Aqua');
-        if (okButton) {
-          (okButton as HTMLElement).click();
-          return true;
-        }
-        return false;
-      });
-      
-      // Wait and check again
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      const stillExistsAfterRetry = await browser.page.evaluate((id) => {
-        return !!document.getElementById(id);
-      }, rowId);
-      
-      if (stillExistsAfterRetry) {
-        return false;
-      }
+      return false;
     }
     
     console.log(chalk.green(`Successfully deleted service ${rowId}`));
