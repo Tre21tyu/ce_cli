@@ -208,100 +208,6 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
 }
 
 /**
- * Remove duplicate services from a work order in Medimizer
- * Duplicate services are defined as services with the same time and service code
- * 
- * @param browser - Browser automation instance
- * @param workOrderNumber - Work order number
- * @returns Number of duplicates removed
- */
-async function removeDuplicateServices(
-  browser: BrowserAutomation,
-  workOrderNumber: string
-): Promise<number> {
-  if (!browser.page) {
-    throw new Error('Browser page not initialized');
-  }
-  
-  try {
-    console.log(chalk.yellow(`Checking for duplicate services in work order ${workOrderNumber}...`));
-    
-    // Navigate to the services tab
-    await navigateToServicesTab(browser, workOrderNumber);
-    
-    // Get existing services with row indices
-    const existingServices = await getExistingServicesWithIndices(browser, workOrderNumber);
-    
-    if (existingServices.length <= 1) {
-      console.log(chalk.green(`No duplicate services possible for work order ${workOrderNumber} (found ${existingServices.length} services)`));
-      return 0;
-    }
-    
-    console.log(chalk.cyan(`Found ${existingServices.length} services for duplicate analysis`));
-    
-    // Group services by date, time, and code to identify duplicates
-    const serviceGroups = groupServicesForDuplicateDetection(existingServices);
-    
-    // Filter groups to find duplicates (more than 1 service in a group)
-    const duplicateGroups = serviceGroups.filter(group => group.count > 1);
-    
-    if (duplicateGroups.length === 0) {
-      console.log(chalk.green(`No duplicate services found for work order ${workOrderNumber}`));
-      return 0;
-    }
-    
-    console.log(chalk.yellow(`Found ${duplicateGroups.length} groups of duplicate services to clean up`));
-    
-    // Count the total number of duplicates to remove
-    // For each group, we keep 1 service and remove the rest
-    let totalDuplicatesToRemove = 0;
-    duplicateGroups.forEach(group => {
-      totalDuplicatesToRemove += group.count - 1; // Keep 1, remove the rest
-      console.log(chalk.yellow(`Group: Date=${group.date}, Code=${group.code}, Count=${group.count}`));
-    });
-    
-    console.log(chalk.yellow(`Preparing to remove ${totalDuplicatesToRemove} duplicate services...`));
-    
-    // Process each duplicate group
-    let removedCount = 0;
-    
-    for (const group of duplicateGroups) {
-      // Keep the first occurrence, remove the rest
-      // We'll delete all but the first index
-      const indicesToRemove = group.rowIndices.slice(1);
-      
-      console.log(chalk.yellow(`Processing group: Date=${group.date}, Code=${group.code}, Removing ${indicesToRemove.length} duplicates`));
-      
-      // Process each duplicate in the group
-      for (const rowIndex of indicesToRemove) {
-        try {
-          // Delete this duplicate
-          const wasDeleted = await deleteServiceByRowIndex(browser, workOrderNumber, rowIndex);
-          
-          if (wasDeleted) {
-            removedCount++;
-            console.log(chalk.green(`Successfully removed duplicate service at row index ${rowIndex}`));
-          } else {
-            console.log(chalk.red(`Failed to remove duplicate service at row index ${rowIndex}`));
-          }
-          
-          // Reload the services tab after each deletion to get fresh indices
-          await navigateToServicesTab(browser, workOrderNumber);
-        } catch (error) {
-          console.log(chalk.red(`Error removing duplicate at row ${rowIndex}: ${error instanceof Error ? error.message : 'Unknown error'}`));
-        }
-      }
-    }
-    
-    console.log(chalk.green(`Removed ${removedCount} duplicate services for work order ${workOrderNumber}`));
-    return removedCount;
-  } catch (error) {
-    console.log(chalk.red(`Error removing duplicate services: ${error instanceof Error ? error.message : 'Unknown error'}`));
-    return 0;
-  }
-}
-
-/**
  * Get existing services from the services tab including their row indices
  * 
  * @param browser - Browser automation instance
@@ -1282,5 +1188,99 @@ function parseDatetime(datetime: string): [string, string] {
     console.error(chalk.red(`Error parsing datetime ${datetime}: ${error instanceof Error ? error.message : 'Unknown error'}`));
     // Return defaults in case of error
     return ['01/01/2025', '12:00 PM'];
+  }
+}
+
+/**
+ * Remove duplicate services from a work order in Medimizer
+ * Duplicate services are defined as services with the same time and service code
+ * 
+ * @param browser - Browser automation instance
+ * @param workOrderNumber - Work order number
+ * @returns Number of duplicates removed
+ */
+async function removeDuplicateServices(
+  browser: BrowserAutomation,
+  workOrderNumber: string
+): Promise<number> {
+  if (!browser.page) {
+    throw new Error('Browser page not initialized');
+  }
+  
+  try {
+    console.log(chalk.yellow(`Checking for duplicate services in work order ${workOrderNumber}...`));
+    
+    // Navigate to the services tab
+    await navigateToServicesTab(browser, workOrderNumber);
+    
+    // Get existing services with row indices
+    const existingServices = await getExistingServicesWithIndices(browser, workOrderNumber);
+    
+    if (existingServices.length <= 1) {
+      console.log(chalk.green(`No duplicate services possible for work order ${workOrderNumber} (found ${existingServices.length} services)`));
+      return 0;
+    }
+    
+    console.log(chalk.cyan(`Found ${existingServices.length} services for duplicate analysis`));
+    
+    // Group services by date, time, and code to identify duplicates
+    const serviceGroups = groupServicesForDuplicateDetection(existingServices);
+    
+    // Filter groups to find duplicates (more than 1 service in a group)
+    const duplicateGroups = serviceGroups.filter(group => group.count > 1);
+    
+    if (duplicateGroups.length === 0) {
+      console.log(chalk.green(`No duplicate services found for work order ${workOrderNumber}`));
+      return 0;
+    }
+    
+    console.log(chalk.yellow(`Found ${duplicateGroups.length} groups of duplicate services to clean up`));
+    
+    // Count the total number of duplicates to remove
+    // For each group, we keep 1 service and remove the rest
+    let totalDuplicatesToRemove = 0;
+    duplicateGroups.forEach(group => {
+      totalDuplicatesToRemove += group.count - 1; // Keep 1, remove the rest
+      console.log(chalk.yellow(`Group: Date=${group.date}, Code=${group.code}, Count=${group.count}`));
+    });
+    
+    console.log(chalk.yellow(`Preparing to remove ${totalDuplicatesToRemove} duplicate services...`));
+    
+    // Process each duplicate group
+    let removedCount = 0;
+    
+    for (const group of duplicateGroups) {
+      // Keep the first occurrence, remove the rest
+      // We'll delete all but the first index
+      const indicesToRemove = group.rowIndices.slice(1);
+      
+      console.log(chalk.yellow(`Processing group: Date=${group.date}, Code=${group.code}, Removing ${indicesToRemove.length} duplicates`));
+      
+      // Process each duplicate in the group
+      for (const rowIndex of indicesToRemove) {
+        try {
+          // Delete this duplicate
+          const wasDeleted = await deleteServiceByRowIndex(browser, workOrderNumber, rowIndex);
+          
+          if (wasDeleted) {
+            removedCount++;
+            console.log(chalk.green(`Successfully removed duplicate service at row index ${rowIndex}`));
+          } else {
+            console.log(chalk.red(`Failed to remove duplicate service at row index ${rowIndex}`));
+          }
+          
+          // Reload the services tab after each deletion to get fresh indices
+          await navigateToServicesTab(browser, workOrderNumber);
+        } catch (error) {
+          console.log(chalk.red(`Error removing duplicate at row ${rowIndex}: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
+      }
+    }
+    
+    console.log(chalk.green(`Removed ${removedCount} duplicate services for work order ${workOrderNumber}`));
+    return removedCount;
+  } catch (error) {
+    console.log(chalk.red(`Error removing duplicate services: ${error instanceof Error ? error.message : 'Unknown error'}`));
+    return 0;
   }
 }
