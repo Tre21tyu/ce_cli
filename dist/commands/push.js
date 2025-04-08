@@ -4,45 +4,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.pushStack = pushStack;
-/**
- * Compare time values to see if they're equivalent, ignoring formatting differences
- *
- * @param actual - Actual time value from the form
- * @param expected - Expected time value
- * @returns True if time values are equivalent
- */
-function compareTimeValues(actual, expected) {
-    try {
-        // Extract numbers and AM/PM from both strings
-        const actualNumbers = actual.replace(/[^0-9]/g, '');
-        const expectedNumbers = expected.replace(/[^0-9]/g, '');
-        const actualHasAM = actual.toLowerCase().includes('am');
-        const actualHasPM = actual.toLowerCase().includes('pm');
-        const expectedHasAM = expected.toLowerCase().includes('am');
-        const expectedHasPM = expected.toLowerCase().includes('pm');
-        // Special case - compact format might be missing leading zeros
-        if (expected.match(/^\d{3,4}(am|pm)$/i)) {
-            // For compact format like "800am" or "1118pm"
-            const numbers = expected.replace(/[^0-9]/g, '');
-            if (numbers === actualNumbers) {
-                return (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
-            }
-        }
-        // Check if the numeric parts match and AM/PM matches
-        const numbersMatch = actualNumbers.includes(expectedNumbers) || expectedNumbers.includes(actualNumbers);
-        const amPmMatch = (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
-        return numbersMatch && amPmMatch;
-    }
-    catch (error) {
-        console.log(chalk_1.default.yellow(`Error comparing time values: ${error instanceof Error ? error.message : 'Unknown error'}`));
-        return false;
-    }
-}
 const chalk_1 = __importDefault(require("chalk"));
 const stack_manager_1 = require("../utils/stack-manager");
 const browser_enhanced_1 = require("../utils/browser-enhanced");
 /**
- * Push services from the stack to Medimizer
+ * Push services from the stack to Medimizer with improved validation
  *
  * @param dryRun - If true, simulate without actually pushing to Medimizer
  * @returns A promise that resolves to a success message
@@ -89,6 +55,7 @@ async function pushStack(dryRun = false) {
             // Push each work order's services
             let successCount = 0;
             let failureCount = 0;
+            let skippedCount = 0;
             for (const workOrder of stack) {
                 console.log(chalk_1.default.cyan(`Processing work order ${workOrder.workOrderNumber}...`));
                 // Get unpushed services for this work order
@@ -97,16 +64,50 @@ async function pushStack(dryRun = false) {
                     console.log(chalk_1.default.green(`No unpushed services for work order ${workOrder.workOrderNumber}.`));
                     continue;
                 }
+                // First check for existing services to avoid duplicates
+                console.log(chalk_1.default.yellow(`Checking for existing services in Medimizer...`));
+                // Navigate to services tab to get existing services
+                await navigateToServicesTab(browser, workOrder.workOrderNumber);
+                // Get existing services from the page
+                const existingServices = await getExistingServices(browser, workOrder.workOrderNumber);
+                console.log(chalk_1.default.cyan(`Found ${existingServices.length} existing services in Medimizer`));
+                // For debugging
+                if (existingServices.length > 0) {
+                    console.log(chalk_1.default.cyan(`Sample of existing services:`));
+                    existingServices.slice(0, 3).forEach((service, idx) => {
+                        console.log(chalk_1.default.cyan(`  ${idx + 1}. Date: ${service.date}, Code: ${service.code}, Description: ${service.description}`));
+                    });
+                }
+                // Process each unpushed service
                 for (let i = 0; i < unpushedServices.length; i++) {
                     const service = unpushedServices[i];
-                    console.log(chalk_1.default.yellow(`Pushing service ${i + 1}/${unpushedServices.length}: Verb ${service.verb_code}${service.noun_code ? `, Noun ${service.noun_code}` : ''}`));
+                    console.log(chalk_1.default.yellow(`Processing service ${i + 1}/${unpushedServices.length}: Verb ${service.verb_code}${service.noun_code ? `, Noun ${service.noun_code}` : ''}`));
+                    // Parse datetime for duplicate checking
+                    const [datePart, timePart] = parseDatetime(service.datetime);
+                    // Check if service already exists
+                    const isDuplicate = checkForDuplicateService(existingServices, service, datePart);
+                    if (isDuplicate) {
+                        console.log(chalk_1.default.yellow(`Service appears to already exist in Medimizer. Marking as pushed and skipping.`));
+                        service.pushedToMM = 1;
+                        skippedCount++;
+                        continue;
+                    }
+                    console.log(chalk_1.default.yellow(`Pushing service to Medimizer...`));
                     try {
                         // Push the service to Medimizer
                         await pushServiceToMedimizer(browser, workOrder.workOrderNumber, service);
-                        // Mark service as pushed
-                        service.pushedToMM = 1;
-                        successCount++;
-                        console.log(chalk_1.default.green(`Service pushed successfully.`));
+                        // Verify the service was added successfully
+                        const wasAdded = await verifyServiceAdded(browser, workOrder.workOrderNumber, service);
+                        if (wasAdded) {
+                            // Mark service as pushed
+                            service.pushedToMM = 1;
+                            successCount++;
+                            console.log(chalk_1.default.green(`Service pushed and verified successfully.`));
+                        }
+                        else {
+                            console.error(chalk_1.default.red(`Service was not found after pushing. Marking as not pushed.`));
+                            failureCount++;
+                        }
                     }
                     catch (error) {
                         console.error(chalk_1.default.red(`Failed to push service: ${error instanceof Error ? error.message : 'Unknown error'}`));
@@ -119,7 +120,7 @@ async function pushStack(dryRun = false) {
             // Close browser
             await browser.close();
             // Return summary
-            return `Push completed. ${successCount} service(s) pushed successfully, ${failureCount} failed.`;
+            return `Push completed. ${successCount} service(s) pushed successfully, ${skippedCount} skipped (already exist), ${failureCount} failed.`;
         }
         catch (error) {
             // Make sure to close the browser even if there's an error
@@ -142,28 +143,189 @@ async function pushStack(dryRun = false) {
     }
 }
 /**
- * Simulate pushing services without actually doing it (dry run)
+ * Navigate to the services tab of a work order
  *
- * @param stack - The current stack of work orders
- * @returns A simulation summary message
+ * @param browser - Browser automation instance
+ * @param workOrderNumber - Work order number
  */
-async function simulatePush(stack) {
-    let totalServices = 0;
-    for (const workOrder of stack) {
-        const unpushedServices = workOrder.services.filter((service) => !service.pushedToMM);
-        if (unpushedServices.length > 0) {
-            console.log(chalk_1.default.cyan(`Would push ${unpushedServices.length} service(s) for work order ${workOrder.workOrderNumber}:`));
-            unpushedServices.forEach((service, index) => {
-                // Parse datetime into MM/DD/YYYY and HH:MM AM/PM format
-                const [datePart, timePart] = parseDatetime(service.datetime);
-                console.log(chalk_1.default.white(`  ${index + 1}. Verb: ${service.verb_code}${service.noun_code ? `, Noun: ${service.noun_code}` : ''}`));
-                console.log(chalk_1.default.white(`     Date: ${datePart}, Time: ${timePart}`));
-                console.log(chalk_1.default.white(`     Notes: ${service.notes.substring(0, 50)}${service.notes.length > 50 ? '...' : ''}`));
-            });
-            totalServices += unpushedServices.length;
+async function navigateToServicesTab(browser, workOrderNumber) {
+    if (!browser.page) {
+        throw new Error('Browser page not initialized');
+    }
+    // URL for the services tab (tab=1)
+    const servicesUrl = `http://sqlmedimizer1/MMWeb/App_Pages/WOForm.aspx?wo=${workOrderNumber}&mode=Edit&tab=1`;
+    console.log(chalk_1.default.yellow(`Navigating to services tab: ${servicesUrl}`));
+    try {
+        await browser.page.goto(servicesUrl, { waitUntil: 'networkidle2' });
+        // Check if we were redirected to login page
+        const isLoginPage = await browser.isLoginPage();
+        if (isLoginPage) {
+            console.log(chalk_1.default.yellow('Redirected to login page. Logging in...'));
+            await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
+            // Navigate back to services tab after login
+            await browser.page.goto(servicesUrl, { waitUntil: 'networkidle2' });
+        }
+        // Take screenshot for debugging
+        await browser.takeScreenshot('services_tab');
+        // Wait for the page to fully load
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    catch (error) {
+        await browser.takeScreenshot('services_tab_navigation_error');
+        if (error instanceof Error) {
+            throw new Error(`Failed to navigate to services tab: ${error.message}`);
+        }
+        else {
+            throw new Error('Failed to navigate to services tab: Unknown error');
         }
     }
-    return `Simulation complete. Would push ${totalServices} service(s) to Medimizer.`;
+}
+/**
+ * Extract existing services from the services tab
+ *
+ * @param browser - Browser automation instance
+ * @param workOrderNumber - Work order number
+ * @returns Array of existing service objects
+ */
+async function getExistingServices(browser, workOrderNumber) {
+    if (!browser.page) {
+        throw new Error('Browser page not initialized');
+    }
+    try {
+        // Wait for the services table to load
+        try {
+            // Wait for any service-related content
+            await Promise.race([
+                browser.page.waitForSelector('#ContentPlaceHolder1_pagWorkOrder_gvServInfo', { timeout: 5000 }),
+                browser.page.waitForSelector('td.dxgv', { timeout: 5000 })
+            ]);
+        }
+        catch (error) {
+            console.log(chalk_1.default.yellow('Services table not found or empty.'));
+            return [];
+        }
+        // Take screenshot for debugging
+        await browser.takeScreenshot('existing_services');
+        // Extract service information from the table
+        const existingServices = await browser.page.evaluate(() => {
+            const services = [];
+            // Helper function to extract text from cell
+            const extractText = (cell) => {
+                return cell.textContent?.trim() || '';
+            };
+            // Try to get rows from the table
+            const rows = Array.from(document.querySelectorAll('tr.dxgvDataRow_Aqua'));
+            if (rows.length > 0) {
+                // Process rows from the grid
+                rows.forEach(row => {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    if (cells.length >= 3) {
+                        // In the Medimizer grid, typically:
+                        // First cell: Service date/time and code
+                        // Second cell: Description
+                        const firstCellText = extractText(cells[0]);
+                        const descriptionText = extractText(cells[1]);
+                        // Extract date, time, and code
+                        // Example format: "3/20/2025 9:00 AM - SERVICE CODE 109"
+                        const dateTimeMatch = firstCellText.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}\s*[AP]M)/i);
+                        const codeMatch = firstCellText.match(/CODE\s+(\d+)/i);
+                        if (dateTimeMatch && codeMatch) {
+                            services.push({
+                                date: dateTimeMatch[1],
+                                time: dateTimeMatch[2],
+                                code: codeMatch[1],
+                                description: descriptionText
+                            });
+                        }
+                    }
+                });
+            }
+            else {
+                // Alternative approach if rows aren't found
+                // Look for any cells that might contain service information
+                const cells = Array.from(document.querySelectorAll('td.dxgv'));
+                cells.forEach(cell => {
+                    const text = extractText(cell);
+                    // Look for patterns that suggest service entries
+                    const dateMatch = text.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
+                    const codeMatch = text.match(/CODE\s+(\d+)/i);
+                    if (dateMatch && codeMatch) {
+                        // Extract time if present
+                        const timeMatch = text.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+                        services.push({
+                            date: dateMatch[0],
+                            time: timeMatch ? timeMatch[0] : undefined,
+                            code: codeMatch[1],
+                            description: text.replace(/(\d{1,2}\/\d{1,2}\/\d{4})/, '')
+                                .replace(/(\d{1,2}:\d{2}\s*[AP]M)/i, '')
+                                .replace(/CODE\s+(\d+)/i, '')
+                                .trim()
+                        });
+                    }
+                });
+            }
+            return services;
+        });
+        return existingServices;
+    }
+    catch (error) {
+        await browser.takeScreenshot('get_existing_services_error');
+        console.log(chalk_1.default.red(`Error extracting existing services: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return [];
+    }
+}
+/**
+ * Check if a service already exists in Medimizer to avoid duplicates
+ *
+ * @param existingServices - Array of existing services
+ * @param service - Service to check
+ * @param dateStr - Formatted date string for comparison
+ * @returns True if a matching service is found
+ */
+function checkForDuplicateService(existingServices, service, dateStr) {
+    // Convert MM/DD/YYYY to a date object for comparison
+    const getDateObj = (dateStr) => {
+        try {
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+                const month = parseInt(parts[0], 10) - 1; // JS months are 0-based
+                const day = parseInt(parts[1], 10);
+                const year = parseInt(parts[2], 10);
+                return new Date(year, month, day);
+            }
+            return null;
+        }
+        catch (error) {
+            return null;
+        }
+    };
+    // Convert date strings to Date objects for comparison
+    const serviceDate = getDateObj(dateStr);
+    if (!serviceDate) {
+        console.log(chalk_1.default.yellow(`Could not parse service date: ${dateStr}`));
+        return false;
+    }
+    // Check each existing service for potential match
+    for (const existingService of existingServices) {
+        // Convert existing service date to Date object
+        const existingDate = getDateObj(existingService.date);
+        if (!existingDate)
+            continue;
+        // Compare dates (within 1 day to account for timezone differences)
+        const dateDiff = Math.abs(serviceDate.getTime() - existingDate.getTime());
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        const datesMatch = dateDiff <= oneDayMs;
+        // Compare service codes
+        const verbCodeMatch = existingService.code.includes(service.verb_code.toString());
+        // If both date and verb code match, likely a duplicate
+        if (datesMatch && verbCodeMatch) {
+            console.log(chalk_1.default.yellow(`Potential duplicate found:`));
+            console.log(chalk_1.default.yellow(`- Existing: Date=${existingService.date}, Code=${existingService.code}, Description=${existingService.description}`));
+            console.log(chalk_1.default.yellow(`- Current: Date=${dateStr}, Verb Code=${service.verb_code}, Noun Code=${service.noun_code || 'none'}`));
+            return true;
+        }
+    }
+    return false;
 }
 /**
  * Push a service to Medimizer using browser automation
@@ -279,11 +441,6 @@ async function pushServiceToMedimizer(browser, workOrderNumber, service) {
         await browser.page.waitForNavigation({ waitUntil: 'networkidle2' });
         // Take screenshot after submission
         await browser.takeScreenshot('after_service_submit');
-        // Verify the service was added
-        const wasAdded = await verifyServiceAdded(browser, workOrderNumber, service);
-        if (!wasAdded) {
-            throw new Error('Service was not successfully added to Medimizer');
-        }
     }
     catch (error) {
         await browser.takeScreenshot('service_push_error');
@@ -375,58 +532,76 @@ async function verifyServiceAdded(browser, workOrderNumber, service) {
         throw new Error('Browser page not initialized');
     }
     try {
-        // Ensure we're on the work order page with services tab
-        const workOrderUrl = `http://sqlmedimizer1/MMWeb/App_Pages/WOForm.aspx?wo=${workOrderNumber}&tab=1`;
-        // Only navigate if we're not already on the correct page
-        const currentUrl = browser.page.url();
-        if (!currentUrl.includes(`wo=${workOrderNumber}&tab=1`)) {
-            await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
-            // Check if we were redirected to login page
-            const isLoginPage = await browser.isLoginPage();
-            if (isLoginPage) {
-                console.log(chalk_1.default.yellow('Redirected to login page during verification. Logging in...'));
-                await browser.login('LPOLLOCK', '890piojkl!@#$98', 'URMCCEX3');
-                // Navigate back to work order page after login
-                await browser.page.goto(workOrderUrl, { waitUntil: 'networkidle2' });
-            }
-        }
+        // Navigate to the services tab
+        await navigateToServicesTab(browser, workOrderNumber);
         // Parse datetime for matching
         const [datePart] = parseDatetime(service.datetime);
-        // Wait for the services table to load
-        console.log(chalk_1.default.yellow('Checking if service was added...'));
-        // Wait for table
-        await browser.page.waitForSelector('td.dxgv', { timeout: 10000 });
         // Take screenshot of the services page
         await browser.takeScreenshot('service_verification');
-        // Look for the service in the table
-        const serviceFound = await browser.page.evaluate((verbCode, nounCode, dateStr) => {
-            // Helper function to check if a cell contains text
-            const cellContains = (cell, text) => {
-                return cell.textContent?.includes(text) || false;
-            };
-            // Get all service rows
-            const cells = Array.from(document.querySelectorAll('td.dxgv'));
-            // Look for cells that contain both the verb code and the date
-            for (const cell of cells) {
-                // For service verification, we just need to find the verb code and date
-                // The service might not include the noun code in the display
-                if (cellContains(cell, verbCode.toString()) && cellContains(cell, dateStr)) {
-                    return true;
-                }
+        // Check existing services to see if our service appears
+        const existingServices = await getExistingServices(browser, workOrderNumber);
+        // Look for a match in the existing services
+        for (const existingService of existingServices) {
+            // Check for date match (allowing for format differences)
+            const dateMatch = areDatesEquivalent(existingService.date, datePart);
+            // Check for verb code match
+            const codeMatch = existingService.code.includes(service.verb_code.toString());
+            if (dateMatch && codeMatch) {
+                console.log(chalk_1.default.green(`Service verification successful: Found matching service with date ${existingService.date} and code ${existingService.code}`));
+                return true;
             }
-            return false;
-        }, service.verb_code, service.noun_code, datePart);
-        if (serviceFound) {
-            console.log(chalk_1.default.green('Service was successfully verified in Medimizer'));
-            return true;
         }
-        else {
-            console.log(chalk_1.default.red('Service was not found in Medimizer'));
-            return false;
-        }
+        console.log(chalk_1.default.red(`Service verification failed: Could not find service with date ${datePart} and verb code ${service.verb_code}`));
+        console.log(chalk_1.default.red(`Existing services: ${JSON.stringify(existingServices)}`));
+        return false;
     }
     catch (error) {
         console.log(chalk_1.default.red(`Error verifying service: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return false;
+    }
+}
+/**
+ * Check if two date strings represent the same date, despite format differences
+ *
+ * @param date1 - First date string (e.g., "3/15/2023")
+ * @param date2 - Second date string (e.g., "03/15/2023")
+ * @returns True if dates are equivalent
+ */
+function areDatesEquivalent(date1, date2) {
+    try {
+        // Helper function to parse date string to Date object
+        const parseDate = (dateStr) => {
+            // Try MM/DD/YYYY format
+            let match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+            if (match) {
+                const month = parseInt(match[1], 10) - 1; // JS months are 0-based
+                const day = parseInt(match[2], 10);
+                const year = parseInt(match[3], 10);
+                return new Date(year, month, day);
+            }
+            // Try YYYY-MM-DD format
+            match = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+            if (match) {
+                const year = parseInt(match[1], 10);
+                const month = parseInt(match[2], 10) - 1; // JS months are 0-based
+                const day = parseInt(match[3], 10);
+                return new Date(year, month, day);
+            }
+            return null;
+        };
+        const d1 = parseDate(date1);
+        const d2 = parseDate(date2);
+        if (!d1 || !d2) {
+            console.log(chalk_1.default.yellow(`Could not parse one or both dates: "${date1}", "${date2}"`));
+            return false;
+        }
+        // Compare dates
+        return d1.getFullYear() === d2.getFullYear() &&
+            d1.getMonth() === d2.getMonth() &&
+            d1.getDate() === d2.getDate();
+    }
+    catch (error) {
+        console.log(chalk_1.default.yellow(`Error comparing dates: ${error instanceof Error ? error.message : 'Unknown error'}`));
         return false;
     }
 }
@@ -455,6 +630,70 @@ function formatTimeForInput(timeString) {
         return timeString;
     }
 }
+/**
+ * Compare time values to see if they're equivalent, ignoring formatting differences
+ *
+ * @param actual - Actual time value from the form
+ * @param expected - Expected time value
+ * @returns True if time values are equivalent
+ */
+function compareTimeValues(actual, expected) {
+    try {
+        // Extract numbers and AM/PM from both strings
+        const actualNumbers = actual.replace(/[^0-9]/g, '');
+        const expectedNumbers = expected.replace(/[^0-9]/g, '');
+        const actualHasAM = actual.toLowerCase().includes('am');
+        const actualHasPM = actual.toLowerCase().includes('pm');
+        const expectedHasAM = expected.toLowerCase().includes('am');
+        const expectedHasPM = expected.toLowerCase().includes('pm');
+        // Special case - compact format might be missing leading zeros
+        if (expected.match(/^\d{3,4}(am|pm)$/i)) {
+            // For compact format like "800am" or "1118pm"
+            const numbers = expected.replace(/[^0-9]/g, '');
+            if (numbers === actualNumbers) {
+                return (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
+            }
+        }
+        // Check if the numeric parts match and AM/PM matches
+        const numbersMatch = actualNumbers.includes(expectedNumbers) || expectedNumbers.includes(actualNumbers);
+        const amPmMatch = (actualHasAM && expectedHasAM) || (actualHasPM && expectedHasPM);
+        return numbersMatch && amPmMatch;
+    }
+    catch (error) {
+        console.log(chalk_1.default.yellow(`Error comparing time values: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return false;
+    }
+}
+/**
+ * Simulate pushing services without actually doing it (dry run)
+ *
+ * @param stack - The current stack of work orders
+ * @returns A simulation summary message
+ */
+async function simulatePush(stack) {
+    let totalServices = 0;
+    for (const workOrder of stack) {
+        const unpushedServices = workOrder.services.filter((service) => !service.pushedToMM);
+        if (unpushedServices.length > 0) {
+            console.log(chalk_1.default.cyan(`Would push ${unpushedServices.length} service(s) for work order ${workOrder.workOrderNumber}:`));
+            unpushedServices.forEach((service, index) => {
+                // Parse datetime into MM/DD/YYYY and HH:MM AM/PM format
+                const [datePart, timePart] = parseDatetime(service.datetime);
+                console.log(chalk_1.default.white(`  ${index + 1}. Verb: ${service.verb_code}${service.noun_code ? `, Noun: ${service.noun_code}` : ''}`));
+                console.log(chalk_1.default.white(`     Date: ${datePart}, Time: ${timePart}`));
+                console.log(chalk_1.default.white(`     Notes: ${service.notes.substring(0, 50)}${service.notes.length > 50 ? '...' : ''}`));
+            });
+            totalServices += unpushedServices.length;
+        }
+    }
+    return `Simulation complete. Would push ${totalServices} service(s) to Medimizer.`;
+}
+/**
+ * Split datetime string into date and time parts
+ *
+ * @param datetime - Datetime string from service
+ * @returns Tuple of [datePart, timePart]
+ */
 function parseDatetime(datetime) {
     try {
         // Split datetime into date and time parts
