@@ -18,6 +18,7 @@ const close_1 = require("./commands/close");
 const note_1 = require("./commands/note");
 const stack_1 = require("./commands/stack");
 const day_1 = require("./commands/day");
+const del_dups_1 = require("./commands/del-dups");
 /**
  * REPL (Read-Eval-Print-Loop) class for interactive CLI
  */
@@ -439,6 +440,27 @@ class CeCliRepl {
                     }
                 }
                 break;
+            // Add this to the repl.ts file in the processCommand method, inside the switch statement
+            case 'del-dups':
+                if (args.length === 0) {
+                    console.log(chalk_1.default.red('Error: Work order number is required'));
+                    console.log(chalk_1.default.yellow('Usage: del-dups <7-digit-work-order-number>'));
+                }
+                else {
+                    try {
+                        const result = await (0, del_dups_1.deleteDuplicates)(args[0]);
+                        console.log(result);
+                    }
+                    catch (error) {
+                        if (error instanceof Error) {
+                            console.log(chalk_1.default.red(error.message));
+                        }
+                        else {
+                            console.log(chalk_1.default.red('An unknown error occurred'));
+                        }
+                    }
+                }
+                break;
             case 'days-summary':
                 try {
                     // Check if there's a numeric argument for number of days
@@ -492,6 +514,7 @@ class CeCliRepl {
         console.log(chalk_1.default.cyan('  note <wo-number>') + ' - Open notes for a work order');
         console.log(chalk_1.default.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
         console.log(chalk_1.default.cyan('  open <wo-number>') + ' - Open a work order in Medimizer (browser stays open)');
+        console.log(chalk_1.default.cyan('  del-dups <wo-number>') + ' - Delete duplicate services for a work order in Medimizer');
         // Day tracking
         console.log(chalk_1.default.green('\nDay Tracking:'));
         console.log(chalk_1.default.cyan('  start-day') + ' - Start a new work day');

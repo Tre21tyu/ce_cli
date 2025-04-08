@@ -12,6 +12,7 @@ import { closeWorkOrder } from './commands/close';
 import { openNotes, importNotes } from './commands/note';
 import { stackWorkOrder, displayStack, clearStack } from './commands/stack';
 import { startDay, endDay, dayStatus, daysSummary } from './commands/day';
+import { deleteDuplicates } from './commands/del-dups';
 
 /**
  * REPL (Read-Eval-Print-Loop) class for interactive CLI
@@ -413,6 +414,25 @@ export class CeCliRepl {
         }
         break;
 
+// Add this to the repl.ts file in the processCommand method, inside the switch statement
+
+case 'del-dups':
+  if (args.length === 0) {
+    console.log(chalk.red('Error: Work order number is required'));
+    console.log(chalk.yellow('Usage: del-dups <7-digit-work-order-number>'));
+  } else {
+    try {
+      const result = await deleteDuplicates(args[0]);
+      console.log(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        console.log(chalk.red(error.message));
+      } else {
+        console.log(chalk.red('An unknown error occurred'));
+      }
+    }
+  }
+  break;
       case 'days-summary':
         try {
           // Check if there's a numeric argument for number of days
@@ -472,7 +492,8 @@ export class CeCliRepl {
     console.log(chalk.cyan('  note <wo-number>') + ' - Open notes for a work order');
     console.log(chalk.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
     console.log(chalk.cyan('  open <wo-number>') + ' - Open a work order in Medimizer (browser stays open)');
-    
+    console.log(chalk.cyan('  del-dups <wo-number>') + ' - Delete duplicate services for a work order in Medimizer');
+
     // Day tracking
     console.log(chalk.green('\nDay Tracking:'));
     console.log(chalk.cyan('  start-day') + ' - Start a new work day');
@@ -499,3 +520,6 @@ export class CeCliRepl {
     console.log(chalk.cyan('  exit') + ' - Exit the application');
   }
 }
+
+
+
