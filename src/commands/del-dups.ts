@@ -295,7 +295,7 @@ function findDuplicateGroups(services: ServiceRecord[]): DuplicateGroup[] {
 }
 
 /**
- * Delete a service by its row ID using keyboard-based confirmation
+ * Delete a service by its row ID with direct OK button clicking
  * 
  * @param browser - Browser automation instance
  * @param rowId - Row ID of the service to delete
@@ -336,52 +336,43 @@ async function deleteService(browser: BrowserAutomation, rowId: string): Promise
     // 2. Find and click the Delete button
     console.log(chalk.yellow('Looking for Delete button...'));
     
-    // Try multiple selectors for the Delete button
-    const deleteButtonSelectors = [
-      '#ContentPlaceHolder1_pagWorkOrder_btnDeleteService', 
-      '#ContentPlaceHolder1_pagWorkOrder_btnDelete',
-      'input[value="Delete"]',
-      'input[type="button"][value="Delete"]',
-      'input[onclick*="delete"]',
-      'input[id*="Delete"]',
-      'a[id*="Delete"]',
-      'span[id*="Delete"]'
-    ];
-    
+    const deleteButtonSelector = '#ContentPlaceHolder1_pagWorkOrder_btnDelete';
     let buttonFound = false;
     
-    for (const selector of deleteButtonSelectors) {
-      try {
-        const buttonExists = await browser.page.$(selector);
-        
-        if (buttonExists) {
-          console.log(chalk.yellow(`Found delete button: ${selector}`));
-          await browser.page.click(selector);
-          buttonFound = true;
-          break;
-        }
-      } catch (error) {
-        // Continue to next selector
+    try {
+      const buttonExists = await browser.page.$(deleteButtonSelector);
+      
+      if (buttonExists) {
+        console.log(chalk.yellow(`Found delete button: ${deleteButtonSelector}`));
+        await browser.page.click(deleteButtonSelector);
+        buttonFound = true;
       }
+    } catch (error) {
+      console.log(chalk.yellow(`Error trying to find delete button: ${error instanceof Error ? error.message : 'Unknown error'}`));
     }
     
-    // If no button found by selector, try to find by text content
+    // If the specific selector failed, try other common selectors
     if (!buttonFound) {
-      console.log(chalk.yellow('Trying to find Delete button by text content...'));
+      const otherSelectors = [
+        'input[value="Delete"]',
+        'input[type="button"][value="Delete"]',
+        'input[onclick*="delete"]',
+        'input[id*="Delete"]'
+      ];
       
-      buttonFound = await browser.page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll('input, button, a, span'));
-        const deleteButton = buttons.find(el => 
-          (el.textContent?.trim() === 'Delete' || 
-           el.getAttribute('value')?.trim() === 'Delete')
-        );
-        
-        if (deleteButton) {
-          (deleteButton as HTMLElement).click();
-          return true;
+      for (const selector of otherSelectors) {
+        try {
+          const exists = await browser.page.$(selector);
+          if (exists) {
+            console.log(chalk.yellow(`Found delete button with selector: ${selector}`));
+            await browser.page.click(selector);
+            buttonFound = true;
+            break;
+          }
+        } catch (error) {
+          // Continue to next selector
         }
-        return false;
-      });
+      }
     }
     
     if (!buttonFound) {
@@ -389,7 +380,7 @@ async function deleteService(browser: BrowserAutomation, rowId: string): Promise
       return false;
     }
     
-    // 3. Wait for the dialog and then use keyboard to confirm
+    // 3. Wait for the confirmation dialog and click OK
     console.log(chalk.yellow('Waiting for confirmation dialog...'));
     
     // Wait for the dialog to appear
@@ -398,19 +389,79 @@ async function deleteService(browser: BrowserAutomation, rowId: string): Promise
     // Take screenshot of dialog
     await browser.takeScreenshot(`delete_dialog_${rowId}`);
     
-    // DIRECT KEYBOARD APPROACH: Press Enter multiple times to confirm
-    console.log(chalk.yellow('Using keyboard to confirm deletion...'));
+    // DIRECT APPROACH: Click the OK button by its specific appearance
+    // Based on the screenshot - blue button with class 'dxbButton_Aqua'
+    const okClicked = await browser.page.evaluate(() => {
+      // Look for a button with text "OK" - most reliable approach based on the screenshot
+      const okButtonByText = Array.from(document.querySelectorAll('button, input[type="button"]'))
+        .find(el => el.textContent?.trim() === 'OK' || (el as HTMLInputElement).value === 'OK');
+      
+      if (okButtonByText) {
+        (okButtonByText as HTMLElement).click();
+        return true;
+      }
+      
+      // Look for the blue button class shown in the screenshot
+      const okButtonByClass = document.querySelector('.dxbButton_Aqua');
+      if (okButtonByClass) {
+        (okButtonByClass as HTMLElement).click();
+        return true;
+      }
+      
+      // Try by ID
+      const okButtonById = document.querySelector('#OK, #OK_CD');
+      if (okButtonById) {
+        (okButtonById as HTMLElement).click();
+        return true;
+      }
+      
+      return false;
+    });
     
-    // Press Enter key multiple times with delays to ensure it's registered
-    for (let i = 0; i < 3; i++) {
-      await browser.page.keyboard.press('Enter');
-      await new Promise(resolve => setTimeout(resolve, 500));
+    if (okClicked) {
+      console.log(chalk.green('Found and clicked OK button'));
+    } else {
+      console.log(chalk.yellow('Could not find OK button by usual methods, trying more specific approach'));
+      
+      // Based on the exact screenshot structure, directly target the button
+      await browser.page.evaluate(() => {
+        // Try to find the OK button that appears in a Medimizer dialog
+        // Find all buttons in the document
+        const allButtons = Array.from(document.querySelectorAll('button, input[type="button"]'));
+        
+        // Look for visible buttons
+        const visibleButtons = allButtons.filter(btn => {
+          const style = window.getComputedStyle(btn);
+          return style.display !== 'none' && style.visibility !== 'hidden';
+        });
+        
+        // If there are only a few visible buttons, try clicking the one that looks like "OK"
+        if (visibleButtons.length > 0 && visibleButtons.length < 5) {
+          // Try to find the blue OK button that appears in the screenshot
+          for (const btn of visibleButtons) {
+            const style = window.getComputedStyle(btn);
+            const text = btn.textContent || (btn as HTMLInputElement).value || '';
+            
+            // If it's a blue button or has OK text, click it
+            if (text.includes('OK') || 
+                style.backgroundColor.includes('blue') || 
+                btn.className.includes('Blue') || 
+                btn.className.includes('OK') ||
+                btn.className.includes('Primary')) {
+              (btn as HTMLElement).click();
+              return true;
+            }
+          }
+          
+          // If no blue/OK button found, just click the first visible button
+          // This is a last resort
+          (visibleButtons[0] as HTMLElement).click();
+          return true;
+        }
+        
+        return false;
+      });
     }
-    
-    // Press Tab and then Enter in case the OK button isn't focused by default
-    await browser.page.keyboard.press('Tab');
-    await new Promise(resolve => setTimeout(resolve, 500));
-    await browser.page.keyboard.press('Enter');
     
     // Wait for the page to refresh/update after confirmation
     console.log(chalk.yellow('Waiting for page to update after confirmation...'));
@@ -429,36 +480,42 @@ async function deleteService(browser: BrowserAutomation, rowId: string): Promise
     } else {
       console.log(chalk.red(`Deletion may have failed: Service count did not decrease (before: ${serviceCountBefore}, after: ${serviceCountAfter})`));
       
-      // Try one more approach - using page.evaluate to directly trigger Enter key
-      console.log(chalk.yellow('Trying alternative keyboard approach...'));
+      // One last attempt - capture a new screenshot and analyze it for debugging
+      await browser.takeScreenshot(`dialog_final_attempt_${rowId}`);
       
-      await browser.page.evaluate(() => {
-        // Create and dispatch a keyboard event for Enter key
-        const enterEvent = new KeyboardEvent('keydown', {
-          key: 'Enter',
-          code: 'Enter',
-          keyCode: 13,
-          which: 13,
-          bubbles: true,
-          cancelable: true
-        });
+      // Try one more specific approach - clicking the exact blue OK button from the screenshot
+      const finalAttempt = await browser.page.evaluate(() => {
+        // Based on the screenshot, try to click specifically the blue button with white text "OK"
+        // Look for elements with specific CSS properties
+        const buttons = Array.from(document.querySelectorAll('button, input[type="button"], a.dxbButton_Aqua, span.dxbButton_Aqua'));
         
-        document.dispatchEvent(enterEvent);
-        
-        // Also try to find and click the OK button directly
-        const okButton = document.querySelector('.dxbButton_Aqua');
-        if (okButton) {
-          (okButton as HTMLElement).click();
+        // Find buttons with blue background or the specific class
+        for (const btn of buttons) {
+          if (btn.className.includes('dxbButton_Aqua')) {
+            (btn as HTMLElement).click();
+            return true;
+          }
         }
+        
+        // If the dialog is still visible, try to find its close button or X button
+        const closeButtons = Array.from(document.querySelectorAll('.dxpc-closeBtn, .close-button, button.close'));
+        if (closeButtons.length > 0) {
+          (closeButtons[0] as HTMLElement).click();
+          return true;
+        }
+        
+        return false;
       });
       
-      // Wait again and recheck
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      const serviceCountAfterRetry = await countServices(browser);
-      if (serviceCountAfterRetry < serviceCountBefore) {
-        console.log(chalk.green(`Deletion successful after retry: Service count decreased from ${serviceCountBefore} to ${serviceCountAfterRetry}`));
-        return true;
+      if (finalAttempt) {
+        // Wait again and recheck
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        const serviceCountFinal = await countServices(browser);
+        if (serviceCountFinal < serviceCountBefore) {
+          console.log(chalk.green(`Deletion successful after final attempt: Service count decreased from ${serviceCountBefore} to ${serviceCountFinal}`));
+          return true;
+        }
       }
       
       return false;
