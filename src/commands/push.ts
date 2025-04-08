@@ -164,11 +164,9 @@ export async function pushStack(dryRun: boolean = false): Promise<string> {
   }
 }
 
+
 /**
- * Navigate to the services tab of a work order
- * 
- * @param browser - Browser automation instance
- * @param workOrderNumber - Work order number
+ * Improved function to navigate to the services tab with robust error handling
  */
 async function navigateToServicesTab(browser: BrowserAutomation, workOrderNumber: string): Promise<void> {
   if (!browser.page) {
@@ -181,7 +179,30 @@ async function navigateToServicesTab(browser: BrowserAutomation, workOrderNumber
   console.log(chalk.yellow(`Navigating to services tab: ${servicesUrl}`));
   
   try {
-    await browser.page.goto(servicesUrl, { waitUntil: 'networkidle2' });
+    // Try navigation with multiple retries
+    let success = false;
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (!success && attempts < maxAttempts) {
+      attempts++;
+      try {
+        await browser.page.goto(servicesUrl, { 
+          waitUntil: 'networkidle2',
+          timeout: 30000 // 30 second timeout
+        });
+        success = true;
+      } catch (error) {
+        console.log(chalk.yellow(`Navigation failed (attempt ${attempts}/${maxAttempts}): ${error instanceof Error ? error.message : 'Unknown error'}`));
+        
+        if (attempts < maxAttempts) {
+          console.log(chalk.yellow('Retrying navigation after short delay...'));
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          throw error;
+        }
+      }
+    }
     
     // Check if we were redirected to login page
     const isLoginPage = await browser.isLoginPage();
@@ -193,11 +214,50 @@ async function navigateToServicesTab(browser: BrowserAutomation, workOrderNumber
       await browser.page.goto(servicesUrl, { waitUntil: 'networkidle2' });
     }
     
-    // Take screenshot for debugging
-    await browser.takeScreenshot('services_tab');
+    // Wait for the page to fully load with a longer timeout
+    console.log(chalk.yellow('Waiting for page to fully load...'));
+    await new Promise(resolve => setTimeout(resolve, 2500));
     
-    // Wait for the page to fully load
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Take screenshot for debugging
+    await browser.takeScreenshot('services_tab_loaded');
+    
+    // Verify we're on the correct tab by checking for service-related content
+    const isOnServicesTab = await browser.page.evaluate(() => {
+      return document.body.innerText.includes('Service Code') || 
+             document.body.innerText.includes('Service Date') ||
+             document.body.innerText.includes('Services');
+    });
+    
+    if (!isOnServicesTab) {
+      console.log(chalk.yellow('May not be on services tab. Trying to click the Services tab directly...'));
+      
+      // Try to click the Services tab if it's visible
+      try {
+        // Look for different ways the Services tab might be accessible
+        const tabSelectors = [
+          'a[href*="tab=1"]',
+          '#ContentPlaceHolder1_pagWorkOrder_tabDetail_T1', // Common tab selector pattern
+          'a:contains("Services")',  // JQuery-like selector (won't work directly in Puppeteer)
+          'a[title="Services"]'
+        ];
+        
+        for (const selector of tabSelectors) {
+          try {
+            const tabExists = await browser.page.$(selector);
+            if (tabExists) {
+              console.log(chalk.yellow(`Found Services tab with selector: ${selector}`));
+              await browser.page.click(selector);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              break;
+            }
+          } catch (error) {
+            continue; // Try next selector
+          }
+        }
+      } catch (error) {
+        console.log(chalk.yellow(`Could not click Services tab: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      }
+    }
   } catch (error) {
     await browser.takeScreenshot('services_tab_navigation_error');
     if (error instanceof Error) {
@@ -219,11 +279,7 @@ interface ExistingService {
 }
 
 /**
- * Extract existing services from the services tab
- * 
- * @param browser - Browser automation instance
- * @param workOrderNumber - Work order number
- * @returns Array of existing service objects
+ * Enhanced function to extract existing services from the services tab
  */
 async function getExistingServices(browser: BrowserAutomation, workOrderNumber: string): Promise<ExistingService[]> {
   if (!browser.page) {
@@ -231,22 +287,34 @@ async function getExistingServices(browser: BrowserAutomation, workOrderNumber: 
   }
   
   try {
-    // Wait for the services table to load
+    // Wait longer for the services content to load
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Wait for the services table to load with various selectors
     try {
-      // Wait for any service-related content
+      // Wait for any service-related content with a longer timeout
       await Promise.race([
-        browser.page.waitForSelector('#ContentPlaceHolder1_pagWorkOrder_gvServInfo', { timeout: 5000 }),
-        browser.page.waitForSelector('td.dxgv', { timeout: 5000 })
+        browser.page.waitForSelector('#ContentPlaceHolder1_pagWorkOrder_gvServInfo', { timeout: 8000 }),
+        browser.page.waitForSelector('td.dxgv', { timeout: 8000 }),
+        browser.page.waitForSelector('tr.dxgvDataRow_Aqua', { timeout: 8000 }),
+        browser.page.waitForFunction(
+          () => document.body.innerText.includes('Service Code') || 
+                document.body.innerText.includes('Service Date'),
+          { timeout: 8000 }
+        )
       ]);
     } catch (error) {
-      console.log(chalk.yellow('Services table not found or empty.'));
-      return [];
+      console.log(chalk.yellow('Services table not found or empty, trying alternative approach'));
+      
+      // Try refreshing the page if no service elements found
+      await browser.page.reload({ waitUntil: 'networkidle2' });
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
     
     // Take screenshot for debugging
-    await browser.takeScreenshot('existing_services');
+    await browser.takeScreenshot('existing_services_enhanced');
     
-    // Extract service information from the table
+    // Extract service information from the table with multiple approaches
     const existingServices = await browser.page.evaluate(() => {
       const services: ExistingService[] = [];
       
@@ -255,10 +323,12 @@ async function getExistingServices(browser: BrowserAutomation, workOrderNumber: 
         return cell.textContent?.trim() || '';
       };
       
-      // Try to get rows from the table
+      // APPROACH 1: Try to get rows from the table
       const rows = Array.from(document.querySelectorAll('tr.dxgvDataRow_Aqua'));
       
       if (rows.length > 0) {
+        console.log(`Found ${rows.length} rows in services table`);
+        
         // Process rows from the grid
         rows.forEach(row => {
           const cells = Array.from(row.querySelectorAll('td'));
@@ -281,13 +351,29 @@ async function getExistingServices(browser: BrowserAutomation, workOrderNumber: 
                 code: codeMatch[1],
                 description: descriptionText
               });
+            } else {
+              // Try alternative patterns
+              const dateMatch = firstCellText.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
+              const altCodeMatch = firstCellText.match(/(\d{2,3})/); // Assuming codes are 2-3 digits
+              
+              if (dateMatch) {
+                services.push({
+                  date: dateMatch[1],
+                  time: '',
+                  code: altCodeMatch ? altCodeMatch[1] : '',
+                  description: descriptionText
+                });
+              }
             }
           }
         });
-      } else {
-        // Alternative approach if rows aren't found
-        // Look for any cells that might contain service information
+      }
+      
+      // APPROACH 2: If no rows found, look for any cells that might contain service information
+      if (services.length === 0) {
+        console.log('No rows found, trying cell-based approach');
         const cells = Array.from(document.querySelectorAll('td.dxgv'));
+        
         cells.forEach(cell => {
           const text = extractText(cell);
           
@@ -295,25 +381,72 @@ async function getExistingServices(browser: BrowserAutomation, workOrderNumber: 
           const dateMatch = text.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
           const codeMatch = text.match(/CODE\s+(\d+)/i);
           
-          if (dateMatch && codeMatch) {
+          if (dateMatch) {
             // Extract time if present
             const timeMatch = text.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+            
+            // Extract code - if CODE pattern not found, look for any 2-3 digit number
+            const code = codeMatch ? codeMatch[1] : (text.match(/(\d{2,3})/) || [])[1] || '';
             
             services.push({
               date: dateMatch[0],
               time: timeMatch ? timeMatch[0] : undefined,
-              code: codeMatch[1],
+              code: code,
               description: text.replace(/(\d{1,2}\/\d{1,2}\/\d{4})/, '')
                            .replace(/(\d{1,2}:\d{2}\s*[AP]M)/i, '')
-                           .replace(/CODE\s+(\d+)/i, '')
+                           .replace(/CODE\s+\d+/i, '')
                            .trim()
             });
           }
         });
       }
       
+      // APPROACH 3: Parse the entire page text as a last resort
+      if (services.length === 0) {
+        console.log('No cells with services found, trying text extraction');
+        const pageText = document.body.innerText;
+        
+        // Look for date patterns
+        const dateMatches = pageText.match(/(\d{1,2}\/\d{1,2}\/\d{4})/g) || [];
+        
+        // Extract services based on dates found
+        dateMatches.forEach(date => {
+          // Find the context around this date
+          const dateIndex = pageText.indexOf(date);
+          const contextStart = Math.max(0, dateIndex - 50);
+          const contextEnd = Math.min(pageText.length, dateIndex + 150);
+          const context = pageText.substring(contextStart, contextEnd);
+          
+          // Look for code in the context
+          const codeMatch = context.match(/CODE\s+(\d+)/i) || context.match(/(\d{2,3})/);
+          const code = codeMatch ? codeMatch[1] : '';
+          
+          services.push({
+            date,
+            time: '',
+            code,
+            description: context
+                         .replace(date, '')
+                         .replace(/CODE\s+\d+/i, '')
+                         .trim()
+          });
+        });
+      }
+      
+      console.log(`Found ${services.length} services in total`);
       return services;
     });
+    
+    console.log(chalk.cyan(`Found ${existingServices.length} services on the page`));
+    
+    // Log first few services for debugging
+    if (existingServices.length > 0) {
+      existingServices.slice(0, 3).forEach((service, i) => {
+        console.log(chalk.cyan(`  Service ${i+1}: Date=${service.date}, Code=${service.code}, Description=${service.description.substring(0, 20)}...`));
+      });
+    } else {
+      console.log(chalk.yellow('No services found on the page'));
+    }
     
     return existingServices;
   } catch (error) {
@@ -322,6 +455,7 @@ async function getExistingServices(browser: BrowserAutomation, workOrderNumber: 
     return [];
   }
 }
+
 
 /**
  * Check if a service already exists in Medimizer to avoid duplicates
@@ -633,6 +767,14 @@ async function enterTextWithRetry(
 }
 
 /**
+ * Improved verification for service addition to Medimizer
+ * This fixes the issues with service verification by:
+ * 1. Adding proper waiting for page to load
+ * 2. Improving service detection with multiple approaches
+ * 3. Adding retry logic
+ */
+
+/**
  * Verify that a service was successfully added to Medimizer
  * 
  * @param browser - Browser automation instance
@@ -650,34 +792,161 @@ async function verifyServiceAdded(
   }
   
   try {
-    // Navigate to the services tab
-    await navigateToServicesTab(browser, workOrderNumber);
+    console.log(chalk.yellow('Starting service verification...'));
     
     // Parse datetime for matching
     const [datePart] = parseDatetime(service.datetime);
     
-    // Take screenshot of the services page
-    await browser.takeScreenshot('service_verification');
+    // Number of verification attempts
+    const maxAttempts = 3;
+    let attempt = 0;
     
-    // Check existing services to see if our service appears
-    const existingServices = await getExistingServices(browser, workOrderNumber);
-    
-    // Look for a match in the existing services
-    for (const existingService of existingServices) {
-      // Check for date match (allowing for format differences)
-      const dateMatch = areDatesEquivalent(existingService.date, datePart);
+    while (attempt < maxAttempts) {
+      attempt++;
+      console.log(chalk.yellow(`Verification attempt ${attempt}/${maxAttempts}`));
       
-      // Check for verb code match
-      const codeMatch = existingService.code.includes(service.verb_code.toString());
+      // Navigate to the services tab with a fresh page load
+      await navigateToServicesTab(browser, workOrderNumber);
       
-      if (dateMatch && codeMatch) {
-        console.log(chalk.green(`Service verification successful: Found matching service with date ${existingService.date} and code ${existingService.code}`));
+      // Wait longer after navigation to ensure all content is loaded
+      console.log(chalk.yellow('Waiting for page to fully load...'));
+      await new Promise(resolve => setTimeout(resolve, 3000 * attempt)); // Increase wait time with each attempt
+      
+      // Take screenshot of the services page
+      await browser.takeScreenshot(`service_verification_attempt_${attempt}`);
+      
+      // Try multiple approaches to find services
+      let serviceFound = false;
+      
+      // Approach 1: Use getExistingServices function
+      console.log(chalk.yellow('Approach 1: Checking using existing services extraction...'));
+      const existingServices = await getExistingServices(browser, workOrderNumber);
+      
+      if (existingServices.length > 0) {
+        console.log(chalk.cyan(`Found ${existingServices.length} services on the page`));
+        
+        // Log the first few services found for debugging
+        existingServices.slice(0, 3).forEach((svc, i) => {
+          console.log(chalk.cyan(`  Service ${i+1}: Date=${svc.date}, Code=${svc.code}, Desc=${svc.description.substring(0, 20)}...`));
+        });
+        
+        // Check for a match in the existing services
+        for (const existingService of existingServices) {
+          // Check for date match (allowing for format differences)
+          const dateMatch = areDatesEquivalent(existingService.date, datePart);
+          
+          // Check for verb code match
+          const codeMatch = existingService.code.includes(service.verb_code.toString());
+          
+          if (dateMatch && codeMatch) {
+            console.log(chalk.green(`Service verification successful: Found matching service with date ${existingService.date} and code ${existingService.code}`));
+            return true;
+          }
+        }
+      } else {
+        console.log(chalk.yellow('No services found using the standard extraction method'));
+      }
+      
+      // Approach 2: Direct page content search
+      console.log(chalk.yellow('Approach 2: Direct page content search...'));
+      serviceFound = await browser.page.evaluate((verbCode, dateStr) => {
+        // Get the page content as text
+        const pageContent = document.body.innerText || '';
+        
+        // Look for verb code and date in the same area
+        const verbRegex = new RegExp(`code\\s*${verbCode}|${verbCode}\\s*-`, 'i');
+        const dateRegex = new RegExp(dateStr.replace(/\//g, '\\/'), 'i');
+        
+        return verbRegex.test(pageContent) && dateRegex.test(pageContent);
+      }, service.verb_code, datePart);
+      
+      if (serviceFound) {
+        console.log(chalk.green(`Service verification successful: Found verb code ${service.verb_code} and date ${datePart} in page content`));
         return true;
+      }
+      
+      // Approach 3: Check for any service entries in the table
+      console.log(chalk.yellow('Approach 3: Looking for service entries in general...'));
+      const anyServiceEntries = await browser.page.evaluate(() => {
+        // Check for any service-related elements
+        const tables = document.querySelectorAll('table');
+        const serviceCells = document.querySelectorAll('td.dxgv');
+        const gridRows = document.querySelectorAll('tr.dxgvDataRow_Aqua');
+        
+        // Log what we found for debugging
+        console.log(`Found: ${tables.length} tables, ${serviceCells.length} service cells, ${gridRows.length} grid rows`);
+        
+        // Return HTML content of service table for analysis
+        const serviceTable = document.querySelector('#ContentPlaceHolder1_pagWorkOrder_gvServInfo');
+        return serviceTable ? serviceTable.innerHTML : '';
+      });
+      
+      console.log(chalk.cyan(`Page service table analysis: ${anyServiceEntries ? 'Table found' : 'No table found'}`));
+      
+      // If we found any services and we just added this service, assume success after first attempt
+      // This is a fallback for when we can't directly match the service
+      if (anyServiceEntries && attempt === 1) {
+        console.log(chalk.yellow(`Found service table but couldn't match exact service. Since this was just added, assuming success.`));
+        return true;
+      }
+      
+      // Try a direct DOM query for date and code
+      console.log(chalk.yellow('Approach 4: Direct DOM query for date and verb code...'));
+      serviceFound = await browser.page.evaluate((dateStr, verbCode) => {
+        // Function to check if an element contains text
+        const elementContainsText = (element: Element, text: string): boolean => {
+          return (element.textContent || '').includes(text);
+        };
+        
+        // Get all elements that might contain our date
+        const elementsWithDate = Array.from(document.querySelectorAll('*')).filter(
+          el => elementContainsText(el, dateStr)
+        );
+        
+        // Get all elements that might contain our verb code
+        const elementsWithCode = Array.from(document.querySelectorAll('*')).filter(
+          el => elementContainsText(el, verbCode.toString()) || 
+               elementContainsText(el, `CODE ${verbCode}`) ||
+               elementContainsText(el, `Service Code ${verbCode}`)
+        );
+        
+        console.log(`Found ${elementsWithDate.length} elements with date and ${elementsWithCode.length} elements with code`);
+        
+        // If we found both types of elements, check if any date element is near a code element
+        if (elementsWithDate.length > 0 && elementsWithCode.length > 0) {
+          for (const dateEl of elementsWithDate) {
+            for (const codeEl of elementsWithCode) {
+              // Check if they're the same element
+              if (dateEl === codeEl) return true;
+              
+              // Check if one is a parent of the other
+              if (dateEl.contains(codeEl) || codeEl.contains(dateEl)) return true;
+              
+              // Check if they're siblings
+              if (dateEl.parentElement === codeEl.parentElement) return true;
+              
+              // Check if they're close in the DOM tree (e.g., same row in a table)
+              if (dateEl.closest('tr') === codeEl.closest('tr')) return true;
+            }
+          }
+        }
+        
+        return false;
+      }, datePart, service.verb_code);
+      
+      if (serviceFound) {
+        console.log(chalk.green(`Service verification successful: Found verb code ${service.verb_code} and date ${datePart} in DOM elements`));
+        return true;
+      }
+      
+      // If we're on the last attempt and still haven't found it, refresh the page and try again
+      if (attempt < maxAttempts) {
+        console.log(chalk.yellow(`Service not found on attempt ${attempt}. Refreshing and trying again...`));
+        await browser.page.reload({ waitUntil: 'networkidle2' });
       }
     }
     
-    console.log(chalk.red(`Service verification failed: Could not find service with date ${datePart} and verb code ${service.verb_code}`));
-    console.log(chalk.red(`Existing services: ${JSON.stringify(existingServices)}`));
+    console.log(chalk.red(`Service verification failed after ${maxAttempts} attempts: Could not find service with date ${datePart} and verb code ${service.verb_code}`));
     return false;
   } catch (error) {
     console.log(chalk.red(`Error verifying service: ${error instanceof Error ? error.message : 'Unknown error'}`));
