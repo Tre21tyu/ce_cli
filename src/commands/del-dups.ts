@@ -295,7 +295,7 @@ function findDuplicateGroups(services: ServiceRecord[]): DuplicateGroup[] {
 }
 
 /**
- * Delete a service by its row ID
+ * Delete a service by its row ID with improved dialog handling
  * 
  * @param browser - Browser automation instance
  * @param rowId - Row ID of the service to delete
@@ -385,28 +385,82 @@ async function deleteService(browser: BrowserAutomation, rowId: string): Promise
       return false;
     }
     
-    // 3. Handle the confirmation dialog
+    // 3. Handle the custom confirmation dialog
     console.log(chalk.yellow('Waiting for confirmation dialog...'));
     
-    // Set up dialog handler (must be done before clicking Delete)
-    let dialogDetected = false;
-    
-    browser.page.once('dialog', async dialog => {
-      dialogDetected = true;
-      console.log(chalk.yellow(`Dialog detected: ${dialog.message()}`));
-      await dialog.accept();
-    });
-    
-    // Wait for the dialog
+    // Wait for the dialog to appear
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // If no dialog was detected, try pressing Enter anyway
-    if (!dialogDetected) {
-      console.log(chalk.yellow('No dialog detected, pressing Enter key...'));
+    // Take screenshot of dialog
+    await browser.takeScreenshot(`delete_dialog_${rowId}`);
+    
+    // Look for the OK button in the custom dialog
+    const okButtonFound = await browser.page.evaluate(() => {
+      // First try to find by exact ID (if we can find it from the screenshot)
+      const okButton = document.querySelector('#OK_CD, #OK, button:contains("OK")');
+      
+      if (okButton) {
+        (okButton as HTMLElement).click();
+        return true;
+      }
+      
+      // Try finding by text content
+      const buttons = Array.from(document.querySelectorAll('input, button, a, span'));
+      const confirmButton = buttons.find(el => 
+        el.textContent?.trim() === 'OK' || 
+        el.getAttribute('value')?.trim() === 'OK'
+      );
+      
+      if (confirmButton) {
+        (confirmButton as HTMLElement).click();
+        return true;
+      }
+      
+      // If we still can't find it, look for any button in a dialog-like container
+      const dialogButtons = document.querySelectorAll('.dxpc-content button, .dxpc-content input[type="button"]');
+      if (dialogButtons.length > 0) {
+        // Click the first button (assuming it's the OK/confirm button)
+        (dialogButtons[0] as HTMLElement).click();
+        return true;
+      }
+      
+      return false;
+    });
+    
+    if (!okButtonFound) {
+      console.log(chalk.yellow('OK button not found in dialog, trying more specific approach...'));
+      
+      // Based on the screenshot, try more specific selectors for this particular dialog
+      const dialogOkButtonSelectors = [
+        '.ui-dialog-buttonset button:first-child',
+        '.ui-dialog button:first-child',
+        '.dxpcModalBackLite + div button',
+        '.dxpcLite button',
+        'button.dxbButton_Aqua',
+        'div:contains("Are you sure") + div button',
+        'div[role="dialog"] button',
+        '#OK_CD'
+      ];
+      
+      for (const selector of dialogOkButtonSelectors) {
+        try {
+          const selectorExists = await browser.page.$(selector);
+          if (selectorExists) {
+            console.log(chalk.yellow(`Found dialog OK button with selector: ${selector}`));
+            await browser.page.click(selector);
+            break;
+          }
+        } catch (error) {
+          // Continue to next selector
+        }
+      }
+      
+      // If still not found, try pressing Enter key as a last resort
+      console.log(chalk.yellow('Pressing Enter key as last resort...'));
       await browser.page.keyboard.press('Enter');
     }
     
-    // Wait for the page to update
+    // Wait for the page to update after confirmation
     await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Take screenshot after deletion attempt
@@ -419,7 +473,27 @@ async function deleteService(browser: BrowserAutomation, rowId: string): Promise
     
     if (rowStillExists) {
       console.log(chalk.red(`Row ${rowId} still exists after deletion attempt`));
-      return false;
+      
+      // One more try with exact OK button selector based on the screenshot you provided
+      await browser.page.evaluate(() => {
+        const okButton = document.querySelector('.dxbButton_Aqua');
+        if (okButton) {
+          (okButton as HTMLElement).click();
+          return true;
+        }
+        return false;
+      });
+      
+      // Wait and check again
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const stillExistsAfterRetry = await browser.page.evaluate((id) => {
+        return !!document.getElementById(id);
+      }, rowId);
+      
+      if (stillExistsAfterRetry) {
+        return false;
+      }
     }
     
     console.log(chalk.green(`Successfully deleted service ${rowId}`));
