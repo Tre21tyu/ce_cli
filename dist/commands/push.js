@@ -5,10 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.pushStack = pushStack;
 const chalk_1 = __importDefault(require("chalk"));
+const inquirer_1 = __importDefault(require("inquirer"));
 const stack_manager_1 = require("../utils/stack-manager");
 const browser_enhanced_1 = require("../utils/browser-enhanced");
 /**
  * Push services from the stack to Medimizer with improved validation
+ * and duplicate handling
  *
  * @param dryRun - If true, simulate without actually pushing to Medimizer
  * @returns A promise that resolves to a success message
@@ -29,8 +31,27 @@ async function pushStack(dryRun = false) {
             totalServices += wo.services.length;
             unpushedServices += wo.services.filter(service => !service.pushedToMM).length;
         });
+        // If all services are already pushed, ask for confirmation before proceeding
         if (unpushedServices === 0) {
-            return 'All services in the stack have already been pushed to Medimizer.';
+            const { confirmRepush } = await inquirer_1.default.prompt([
+                {
+                    type: 'confirm',
+                    name: 'confirmRepush',
+                    message: chalk_1.default.yellow('All services in the stack have already been pushed to Medimizer. You can try pushing again but duplicate services will be detected. Push Again?'),
+                    default: false
+                }
+            ]);
+            if (!confirmRepush) {
+                return 'Operation canceled by user.';
+            }
+            // If user confirms, reset all services to unpushed
+            stack.forEach(wo => {
+                wo.services.forEach(service => {
+                    service.pushedToMM = 0;
+                });
+            });
+            // Recalculate unpushed count
+            unpushedServices = totalServices;
         }
         console.log(chalk_1.default.yellow(`Preparing to push ${unpushedServices} service(s) to Medimizer...`));
         if (dryRun) {
@@ -52,7 +73,13 @@ async function pushStack(dryRun = false) {
             else {
                 console.log(chalk_1.default.green('Already logged in.'));
             }
-            // Push each work order's services
+            // First, check for and delete duplicate services for each work order
+            console.log(chalk_1.default.yellow('Checking for duplicate services across all work orders...'));
+            for (const workOrder of stack) {
+                console.log(chalk_1.default.cyan(`Checking for duplicates in work order ${workOrder.workOrderNumber}...`));
+                await removeDuplicateServices(browser, workOrder.workOrderNumber);
+            }
+            // Now push each work order's services
             let successCount = 0;
             let failureCount = 0;
             let skippedCount = 0;
@@ -64,20 +91,11 @@ async function pushStack(dryRun = false) {
                     console.log(chalk_1.default.green(`No unpushed services for work order ${workOrder.workOrderNumber}.`));
                     continue;
                 }
-                // First check for existing services to avoid duplicates
-                console.log(chalk_1.default.yellow(`Checking for existing services in Medimizer...`));
-                // Navigate to services tab to get existing services
+                // Navigate to services tab to get existing services after duplicates have been removed
                 await navigateToServicesTab(browser, workOrder.workOrderNumber);
                 // Get existing services from the page
                 const existingServices = await getExistingServices(browser, workOrder.workOrderNumber);
                 console.log(chalk_1.default.cyan(`Found ${existingServices.length} existing services in Medimizer`));
-                // For debugging
-                if (existingServices.length > 0) {
-                    console.log(chalk_1.default.cyan(`Sample of existing services:`));
-                    existingServices.slice(0, 3).forEach((service, idx) => {
-                        console.log(chalk_1.default.cyan(`  ${idx + 1}. Date: ${service.date}, Code: ${service.code}, Description: ${service.description}`));
-                    });
-                }
                 // Process each unpushed service
                 for (let i = 0; i < unpushedServices.length; i++) {
                     const service = unpushedServices[i];
@@ -143,6 +161,294 @@ async function pushStack(dryRun = false) {
     }
 }
 /**
+ * Remove duplicate services from a work order in Medimizer
+ * Duplicate services are defined as services with the same time and service code
+ *
+ * @param browser - Browser automation instance
+ * @param workOrderNumber - Work order number
+ * @returns Number of duplicates removed
+ */
+async function removeDuplicateServices(browser, workOrderNumber) {
+    if (!browser.page) {
+        throw new Error('Browser page not initialized');
+    }
+    try {
+        console.log(chalk_1.default.yellow(`Checking for duplicate services in work order ${workOrderNumber}...`));
+        // Navigate to the services tab
+        await navigateToServicesTab(browser, workOrderNumber);
+        // Get existing services with row indices
+        const existingServices = await getExistingServicesWithIndices(browser, workOrderNumber);
+        if (existingServices.length <= 1) {
+            console.log(chalk_1.default.green(`No duplicate services possible for work order ${workOrderNumber} (found ${existingServices.length} services)`));
+            return 0;
+        }
+        console.log(chalk_1.default.cyan(`Found ${existingServices.length} services for duplicate analysis`));
+        // Group services by date, time, and code to identify duplicates
+        const serviceGroups = groupServicesForDuplicateDetection(existingServices);
+        // Filter groups to find duplicates (more than 1 service in a group)
+        const duplicateGroups = serviceGroups.filter(group => group.count > 1);
+        if (duplicateGroups.length === 0) {
+            console.log(chalk_1.default.green(`No duplicate services found for work order ${workOrderNumber}`));
+            return 0;
+        }
+        console.log(chalk_1.default.yellow(`Found ${duplicateGroups.length} groups of duplicate services to clean up`));
+        // Count the total number of duplicates to remove
+        // For each group, we keep 1 service and remove the rest
+        let totalDuplicatesToRemove = 0;
+        duplicateGroups.forEach(group => {
+            totalDuplicatesToRemove += group.count - 1; // Keep 1, remove the rest
+            console.log(chalk_1.default.yellow(`Group: Date=${group.date}, Code=${group.code}, Count=${group.count}`));
+        });
+        console.log(chalk_1.default.yellow(`Preparing to remove ${totalDuplicatesToRemove} duplicate services...`));
+        // Process each duplicate group
+        let removedCount = 0;
+        for (const group of duplicateGroups) {
+            // Keep the first occurrence, remove the rest
+            // We'll delete all but the first index
+            const indicesToRemove = group.rowIndices.slice(1);
+            console.log(chalk_1.default.yellow(`Processing group: Date=${group.date}, Code=${group.code}, Removing ${indicesToRemove.length} duplicates`));
+            // Process each duplicate in the group
+            for (const rowIndex of indicesToRemove) {
+                try {
+                    // Delete this duplicate
+                    const wasDeleted = await deleteServiceByRowIndex(browser, workOrderNumber, rowIndex);
+                    if (wasDeleted) {
+                        removedCount++;
+                        console.log(chalk_1.default.green(`Successfully removed duplicate service at row index ${rowIndex}`));
+                    }
+                    else {
+                        console.log(chalk_1.default.red(`Failed to remove duplicate service at row index ${rowIndex}`));
+                    }
+                    // Reload the services tab after each deletion to get fresh indices
+                    await navigateToServicesTab(browser, workOrderNumber);
+                }
+                catch (error) {
+                    console.log(chalk_1.default.red(`Error removing duplicate at row ${rowIndex}: ${error instanceof Error ? error.message : 'Unknown error'}`));
+                }
+            }
+        }
+        console.log(chalk_1.default.green(`Removed ${removedCount} duplicate services for work order ${workOrderNumber}`));
+        return removedCount;
+    }
+    catch (error) {
+        console.log(chalk_1.default.red(`Error removing duplicate services: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return 0;
+    }
+}
+/**
+ * Get existing services from the services tab including their row indices
+ *
+ * @param browser - Browser automation instance
+ * @param workOrderNumber - Work order number
+ * @returns Array of existing service objects with row indices
+ */
+async function getExistingServicesWithIndices(browser, workOrderNumber) {
+    if (!browser.page) {
+        throw new Error('Browser page not initialized');
+    }
+    try {
+        // Wait for the page to fully load
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Take screenshot for debugging
+        await browser.takeScreenshot('existing_services_with_indices');
+        // Extract services with row indices for deletion targeting
+        const existingServices = await browser.page.evaluate(() => {
+            const services = [];
+            // Helper function to extract text
+            const extractText = (cell) => {
+                return cell.textContent?.trim() || '';
+            };
+            // Get rows from the services table
+            const rows = Array.from(document.querySelectorAll('tr.dxgvDataRow_Aqua'));
+            rows.forEach((row, rowIndex) => {
+                const cells = Array.from(row.querySelectorAll('td'));
+                if (cells.length >= 2) {
+                    const firstCellText = extractText(cells[0]);
+                    const descriptionText = extractText(cells[1]);
+                    // Extract date, time, and code using various patterns
+                    let date = '';
+                    let time = '';
+                    let code = '';
+                    // Try to extract date (MM/DD/YYYY format)
+                    const dateMatch = firstCellText.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
+                    if (dateMatch) {
+                        date = dateMatch[1];
+                    }
+                    // Try to extract time (HH:MM AM/PM format)
+                    const timeMatch = firstCellText.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+                    if (timeMatch) {
+                        time = timeMatch[1];
+                    }
+                    // Try to extract service code (digits after "CODE" or just digits)
+                    const codeMatch = firstCellText.match(/CODE\s+(\d+)/i) ||
+                        firstCellText.match(/SERVICE CODE\s+(\d+)/i) ||
+                        firstCellText.match(/[^\d](\d{2,3})[^\d]/); // Isolated 2-3 digit number
+                    if (codeMatch) {
+                        code = codeMatch[1];
+                    }
+                    // Only add if we have at least a date and code
+                    if (date && code) {
+                        services.push({
+                            date,
+                            time,
+                            code,
+                            description: descriptionText,
+                            rowIndex
+                        });
+                    }
+                }
+            });
+            return services;
+        });
+        return existingServices;
+    }
+    catch (error) {
+        console.log(chalk_1.default.red(`Error getting existing services with indices: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return [];
+    }
+}
+/**
+ * Group services by date, time, and code to identify duplicates
+ *
+ * @param services - Array of existing services
+ * @returns Array of service groups
+ */
+function groupServicesForDuplicateDetection(services) {
+    const groupMap = new Map();
+    // Group services by date and code
+    services.forEach(service => {
+        // Create a unique key for this service
+        const key = `${service.date}_${service.time || ''}_${service.code}`;
+        if (groupMap.has(key)) {
+            // Update existing group
+            const group = groupMap.get(key);
+            group.count++;
+            group.rowIndices.push(service.rowIndex);
+        }
+        else {
+            // Create new group
+            groupMap.set(key, {
+                date: service.date,
+                time: service.time,
+                code: service.code,
+                count: 1,
+                rowIndices: [service.rowIndex]
+            });
+        }
+    });
+    // Convert map to array
+    return Array.from(groupMap.values());
+}
+/**
+ * Delete a service by its row index
+ *
+ * @param browser - Browser automation instance
+ * @param workOrderNumber - Work order number
+ * @param rowIndex - Index of the row to delete
+ * @returns True if successful, false otherwise
+ */
+async function deleteServiceByRowIndex(browser, workOrderNumber, rowIndex) {
+    if (!browser.page) {
+        throw new Error('Browser page not initialized');
+    }
+    try {
+        console.log(chalk_1.default.yellow(`Attempting to delete service at row index ${rowIndex}...`));
+        // Take screenshot before deletion
+        await browser.takeScreenshot(`before_delete_row_${rowIndex}`);
+        // Click on the row to select it
+        const rowSelector = `tr.dxgvDataRow_Aqua:nth-child(${rowIndex + 1})`;
+        // Wait for the row to be visible
+        try {
+            await browser.page.waitForSelector(rowSelector, { visible: true, timeout: 5000 });
+        }
+        catch (error) {
+            console.log(chalk_1.default.red(`Row with index ${rowIndex} not found`));
+            return false;
+        }
+        // Click the row to select it
+        await browser.page.click(rowSelector);
+        console.log(chalk_1.default.yellow(`Clicked on row ${rowIndex}`));
+        // Wait a moment for selection to register
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Look for the Delete button - try multiple selectors
+        const deleteButtonSelectors = [
+            '#ContentPlaceHolder1_pagWorkOrder_btnDelete', // ID selector
+            'input[value="Delete"]', // Input with value Delete
+            'span:contains("Delete")', // Text contains Delete (won't work directly in Puppeteer)
+            'span[value="Delete"]', // Span with value Delete
+            'a:contains("Delete")', // Anchor with text Delete
+            '.delete-button', // Class selector
+            '[onclick*="delete"]' // Attribute contains delete
+        ];
+        let deleteButtonFound = false;
+        for (const selector of deleteButtonSelectors) {
+            try {
+                const button = await browser.page.$(selector);
+                if (button) {
+                    console.log(chalk_1.default.yellow(`Found delete button with selector: ${selector}`));
+                    await button.click();
+                    deleteButtonFound = true;
+                    break;
+                }
+            }
+            catch (error) {
+                continue; // Try next selector
+            }
+        }
+        // If no button found by selector, try looking for text content
+        if (!deleteButtonFound) {
+            console.log(chalk_1.default.yellow('Delete button not found by selector, trying to find by text content...'));
+            deleteButtonFound = await browser.page.evaluate(() => {
+                // Find elements containing "Delete" text
+                const elements = Array.from(document.querySelectorAll('*')).filter(el => (el.textContent || '').trim() === 'Delete');
+                if (elements.length > 0) {
+                    // Click the first matching element
+                    elements[0].click();
+                    return true;
+                }
+                return false;
+            });
+            if (deleteButtonFound) {
+                console.log(chalk_1.default.yellow('Found and clicked delete button by text content'));
+            }
+        }
+        if (!deleteButtonFound) {
+            console.log(chalk_1.default.red('Delete button not found'));
+            return false;
+        }
+        // Wait for the confirmation dialog
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Take screenshot of dialog
+        await browser.takeScreenshot(`delete_confirmation_row_${rowIndex}`);
+        // Accept the confirmation dialog
+        try {
+            // Try using the dialog interception first
+            browser.page.on('dialog', async (dialog) => {
+                console.log(chalk_1.default.yellow(`Dialog message: ${dialog.message()}`));
+                await dialog.accept();
+            });
+            // Wait a moment for the dialog to be handled
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            // If dialog interception didn't work, try pressing Enter
+            await browser.page.keyboard.press('Enter');
+            // Wait for page to update after deletion
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log(chalk_1.default.green(`Service at row ${rowIndex} successfully deleted`));
+            // Take screenshot after deletion
+            await browser.takeScreenshot(`after_delete_row_${rowIndex}`);
+            return true;
+        }
+        catch (error) {
+            console.log(chalk_1.default.red(`Error handling confirmation dialog: ${error instanceof Error ? error.message : 'Unknown error'}`));
+            return false;
+        }
+    }
+    catch (error) {
+        console.log(chalk_1.default.red(`Error deleting service: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return false;
+    }
+}
+/**
  * Navigate to the services tab of a work order
  *
  * @param browser - Browser automation instance
@@ -168,7 +474,7 @@ async function navigateToServicesTab(browser, workOrderNumber) {
         // Take screenshot for debugging
         await browser.takeScreenshot('services_tab');
         // Wait for the page to fully load
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
     }
     catch (error) {
         await browser.takeScreenshot('services_tab_navigation_error');
@@ -326,6 +632,103 @@ function checkForDuplicateService(existingServices, service, dateStr) {
         }
     }
     return false;
+}
+/**
+ * Verify that a service was successfully added to Medimizer
+ *
+ * @param browser - Browser automation instance
+ * @param workOrderNumber - Work order number
+ * @param service - Service that was pushed
+ * @returns True if the service was found, false otherwise
+ */
+async function verifyServiceAdded(browser, workOrderNumber, service) {
+    if (!browser.page) {
+        throw new Error('Browser page not initialized');
+    }
+    try {
+        // Parse datetime for matching
+        const [datePart] = parseDatetime(service.datetime);
+        // Number of verification attempts
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            console.log(chalk_1.default.yellow(`Verification attempt ${attempt}/${maxAttempts}`));
+            // Navigate to the services tab
+            await navigateToServicesTab(browser, workOrderNumber);
+            // Wait longer with each attempt
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            // Take screenshot of the services page
+            await browser.takeScreenshot(`service_verification_attempt_${attempt}`);
+            // Get existing services from the page
+            const existingServices = await getExistingServices(browser, workOrderNumber);
+            // Check each existing service for a match
+            for (const existingService of existingServices) {
+                // Check for date match (allowing for format differences)
+                const dateMatch = areDatesEquivalent(existingService.date, datePart);
+                // Check for verb code match
+                const codeMatch = existingService.code.includes(service.verb_code.toString());
+                if (dateMatch && codeMatch) {
+                    console.log(chalk_1.default.green(`Service verification successful: Found matching service with date ${existingService.date} and code ${existingService.code}`));
+                    return true;
+                }
+            }
+            // If not found and not the last attempt, try again
+            if (attempt < maxAttempts) {
+                console.log(chalk_1.default.yellow(`Service not found on attempt ${attempt}, trying again...`));
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+        console.log(chalk_1.default.red(`Service verification failed: Could not find service with date ${datePart} and verb code ${service.verb_code}`));
+        return false;
+    }
+    catch (error) {
+        console.log(chalk_1.default.red(`Error verifying service: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return false;
+    }
+}
+/**
+ * Check if two date strings represent the same date, despite format differences
+ *
+ * @param date1 - First date string (e.g., "3/15/2023")
+ * @param date2 - Second date string (e.g., "03/15/2023")
+ * @returns True if dates are equivalent
+ */
+function areDatesEquivalent(date1, date2) {
+    try {
+        // Helper function to parse date string to Date object
+        const parseDate = (dateStr) => {
+            // Try MM/DD/YYYY format
+            let match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+            if (match) {
+                const month = parseInt(match[1], 10) - 1; // JS months are 0-based
+                const day = parseInt(match[2], 10);
+                const year = parseInt(match[3], 10);
+                return new Date(year, month, day);
+            }
+            // Try YYYY-MM-DD format
+            match = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+            if (match) {
+                const year = parseInt(match[1], 10);
+                const month = parseInt(match[2], 10) - 1; // JS months are 0-based
+                const day = parseInt(match[3], 10);
+                return new Date(year, month, day);
+            }
+            return null;
+        };
+        const d1 = parseDate(date1);
+        const d2 = parseDate(date2);
+        if (!d1 || !d2) {
+            console.log(chalk_1.default.yellow(`Could not parse one or both dates: "${date1}", "${date2}"`));
+            return false;
+        }
+        // Compare dates
+        return d1.getFullYear() === d2.getFullYear() &&
+            d1.getMonth() === d2.getMonth() &&
+            d1.getDate() === d2.getDate();
+    }
+    catch (error) {
+        console.log(chalk_1.default.yellow(`Error comparing dates: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return false;
+    }
 }
 /**
  * Push a service to Medimizer using browser automation
@@ -520,117 +923,6 @@ async function enterTextWithRetry(browser, selector, text) {
     }
 }
 /**
- * Verify that a service was successfully added to Medimizer
- *
- * @param browser - Browser automation instance
- * @param workOrderNumber - Work order number
- * @param service - Service that was pushed
- * @returns True if the service was found, false otherwise
- */
-async function verifyServiceAdded(browser, workOrderNumber, service) {
-    if (!browser.page) {
-        throw new Error('Browser page not initialized');
-    }
-    try {
-        // Navigate to the services tab
-        await navigateToServicesTab(browser, workOrderNumber);
-        // Parse datetime for matching
-        const [datePart] = parseDatetime(service.datetime);
-        // Take screenshot of the services page
-        await browser.takeScreenshot('service_verification');
-        // Check existing services to see if our service appears
-        const existingServices = await getExistingServices(browser, workOrderNumber);
-        // Look for a match in the existing services
-        for (const existingService of existingServices) {
-            // Check for date match (allowing for format differences)
-            const dateMatch = areDatesEquivalent(existingService.date, datePart);
-            // Check for verb code match
-            const codeMatch = existingService.code.includes(service.verb_code.toString());
-            if (dateMatch && codeMatch) {
-                console.log(chalk_1.default.green(`Service verification successful: Found matching service with date ${existingService.date} and code ${existingService.code}`));
-                return true;
-            }
-        }
-        console.log(chalk_1.default.red(`Service verification failed: Could not find service with date ${datePart} and verb code ${service.verb_code}`));
-        console.log(chalk_1.default.red(`Existing services: ${JSON.stringify(existingServices)}`));
-        return false;
-    }
-    catch (error) {
-        console.log(chalk_1.default.red(`Error verifying service: ${error instanceof Error ? error.message : 'Unknown error'}`));
-        return false;
-    }
-}
-/**
- * Check if two date strings represent the same date, despite format differences
- *
- * @param date1 - First date string (e.g., "3/15/2023")
- * @param date2 - Second date string (e.g., "03/15/2023")
- * @returns True if dates are equivalent
- */
-function areDatesEquivalent(date1, date2) {
-    try {
-        // Helper function to parse date string to Date object
-        const parseDate = (dateStr) => {
-            // Try MM/DD/YYYY format
-            let match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-            if (match) {
-                const month = parseInt(match[1], 10) - 1; // JS months are 0-based
-                const day = parseInt(match[2], 10);
-                const year = parseInt(match[3], 10);
-                return new Date(year, month, day);
-            }
-            // Try YYYY-MM-DD format
-            match = dateStr.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-            if (match) {
-                const year = parseInt(match[1], 10);
-                const month = parseInt(match[2], 10) - 1; // JS months are 0-based
-                const day = parseInt(match[3], 10);
-                return new Date(year, month, day);
-            }
-            return null;
-        };
-        const d1 = parseDate(date1);
-        const d2 = parseDate(date2);
-        if (!d1 || !d2) {
-            console.log(chalk_1.default.yellow(`Could not parse one or both dates: "${date1}", "${date2}"`));
-            return false;
-        }
-        // Compare dates
-        return d1.getFullYear() === d2.getFullYear() &&
-            d1.getMonth() === d2.getMonth() &&
-            d1.getDate() === d2.getDate();
-    }
-    catch (error) {
-        console.log(chalk_1.default.yellow(`Error comparing dates: ${error instanceof Error ? error.message : 'Unknown error'}`));
-        return false;
-    }
-}
-/**
- * Format time from "HH:MM AM/PM" to compact format "HHMMam/pm" for input fields
- *
- * @param timeString - Time string in format "HH:MM AM/PM"
- * @returns Formatted time string like "800am" or "1118pm"
- */
-function formatTimeForInput(timeString) {
-    try {
-        // Extract hours, minutes, and period (AM/PM)
-        const matches = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
-        if (!matches) {
-            console.log(chalk_1.default.yellow(`Could not parse time string: ${timeString}, using as is`));
-            return timeString;
-        }
-        const hours = parseInt(matches[1], 10);
-        const minutes = matches[2];
-        const period = matches[3].toLowerCase();
-        // Combine without colon or space
-        return `${hours}${minutes}${period}`;
-    }
-    catch (error) {
-        console.log(chalk_1.default.yellow(`Error formatting time: ${error instanceof Error ? error.message : 'Unknown error'}`));
-        return timeString;
-    }
-}
-/**
  * Compare time values to see if they're equivalent, ignoring formatting differences
  *
  * @param actual - Actual time value from the form
@@ -662,6 +954,31 @@ function compareTimeValues(actual, expected) {
     catch (error) {
         console.log(chalk_1.default.yellow(`Error comparing time values: ${error instanceof Error ? error.message : 'Unknown error'}`));
         return false;
+    }
+}
+/**
+ * Format time from "HH:MM AM/PM" to compact format "HHMMam/pm" for input fields
+ *
+ * @param timeString - Time string in format "HH:MM AM/PM"
+ * @returns Formatted time string like "800am" or "1118pm"
+ */
+function formatTimeForInput(timeString) {
+    try {
+        // Extract hours, minutes, and period (AM/PM)
+        const matches = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!matches) {
+            console.log(chalk_1.default.yellow(`Could not parse time string: ${timeString}, using as is`));
+            return timeString;
+        }
+        const hours = parseInt(matches[1], 10);
+        const minutes = matches[2];
+        const period = matches[3].toLowerCase();
+        // Combine without colon or space
+        return `${hours}${minutes}${period}`;
+    }
+    catch (error) {
+        console.log(chalk_1.default.yellow(`Error formatting time: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        return timeString;
     }
 }
 /**
