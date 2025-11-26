@@ -13,6 +13,8 @@ import { openNotes, importNotes } from './commands/note';
 import { stackWorkOrder, displayStack, clearStack } from './commands/stack';
 import { startDay, endDay, dayStatus, daysSummary } from './commands/day';
 import { deleteDuplicates } from './commands/del-dups';
+import { configureApp, showConfig } from './commands/config';
+import { deleteMonth } from './commands/delete-month';
 
 /**
  * REPL (Read-Eval-Print-Loop) class for interactive CLI
@@ -433,14 +435,55 @@ case 'del-dups':
     }
   }
   break;
+
+      case 'delete-month':
+        if (args.length < 3) {
+          console.log(chalk.red('Error: Required parameters missing'));
+          console.log(chalk.yellow('Usage: delete-month <month> <year> <wo-number-or-list>'));
+          console.log(chalk.yellow('Examples:'));
+          console.log(chalk.yellow('  delete-month 10 2025 1234567'));
+          console.log(chalk.yellow('  delete-month 10 2025 [1234567,1234568,1234569]'));
+        } else {
+          try {
+            const month = args[0];
+            const year = args[1];
+            const workOrders = args[2];
+            const result = await deleteMonth(month, year, workOrders);
+            console.log(result);
+          } catch (error) {
+            if (error instanceof Error) {
+              console.log(chalk.red(error.message));
+            } else {
+              console.log(chalk.red('An unknown error occurred'));
+            }
+          }
+        }
+        break;
+
       case 'days-summary':
         try {
           // Check if there's a numeric argument for number of days
-          const days = args.length > 0 && !isNaN(parseInt(args[0])) ? 
+          const days = args.length > 0 && !isNaN(parseInt(args[0])) ?
             parseInt(args[0]) : 7;
-          
+
           const result = await daysSummary(days);
           console.log(result);
+        } catch (error) {
+          if (error instanceof Error) {
+            console.log(chalk.red(error.message));
+          } else {
+            console.log(chalk.red('An unknown error occurred'));
+          }
+        }
+        break;
+
+      case 'config':
+        try {
+          if (args.length > 0 && args[0] === 'show') {
+            await showConfig();
+          } else {
+            await configureApp();
+          }
         } catch (error) {
           if (error instanceof Error) {
             console.log(chalk.red(error.message));
@@ -493,6 +536,7 @@ case 'del-dups':
     console.log(chalk.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
     console.log(chalk.cyan('  open <wo-number>') + ' - Open a work order in Medimizer (browser stays open)');
     console.log(chalk.cyan('  del-dups <wo-number>') + ' - Delete duplicate services for a work order in Medimizer');
+    console.log(chalk.cyan('  delete-month <month> <year> <wo-number-or-list>') + ' - Delete LONNIE POLLOCKS services from a specific month/year');
 
     // Day tracking
     console.log(chalk.green('\nDay Tracking:'));
@@ -515,6 +559,8 @@ case 'del-dups':
     
     // General commands
     console.log(chalk.green('\nGeneral Commands:'));
+    console.log(chalk.cyan('  config') + ' - Configure application settings (including browser mode)');
+    console.log(chalk.cyan('  config show') + ' - Show current configuration');
     console.log(chalk.cyan('  help') + ' - Display this help information');
     console.log(chalk.cyan('  clear') + ' - Clear the screen');
     console.log(chalk.cyan('  exit') + ' - Exit the application');

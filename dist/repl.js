@@ -19,6 +19,8 @@ const note_1 = require("./commands/note");
 const stack_1 = require("./commands/stack");
 const day_1 = require("./commands/day");
 const del_dups_1 = require("./commands/del-dups");
+const config_1 = require("./commands/config");
+const delete_month_1 = require("./commands/delete-month");
 /**
  * REPL (Read-Eval-Print-Loop) class for interactive CLI
  */
@@ -461,6 +463,32 @@ class CeCliRepl {
                     }
                 }
                 break;
+            case 'delete-month':
+                if (args.length < 3) {
+                    console.log(chalk_1.default.red('Error: Required parameters missing'));
+                    console.log(chalk_1.default.yellow('Usage: delete-month <month> <year> <wo-number-or-list>'));
+                    console.log(chalk_1.default.yellow('Examples:'));
+                    console.log(chalk_1.default.yellow('  delete-month 10 2025 1234567'));
+                    console.log(chalk_1.default.yellow('  delete-month 10 2025 [1234567,1234568,1234569]'));
+                }
+                else {
+                    try {
+                        const month = args[0];
+                        const year = args[1];
+                        const workOrders = args[2];
+                        const result = await (0, delete_month_1.deleteMonth)(month, year, workOrders);
+                        console.log(result);
+                    }
+                    catch (error) {
+                        if (error instanceof Error) {
+                            console.log(chalk_1.default.red(error.message));
+                        }
+                        else {
+                            console.log(chalk_1.default.red('An unknown error occurred'));
+                        }
+                    }
+                }
+                break;
             case 'days-summary':
                 try {
                     // Check if there's a numeric argument for number of days
@@ -468,6 +496,24 @@ class CeCliRepl {
                         parseInt(args[0]) : 7;
                     const result = await (0, day_1.daysSummary)(days);
                     console.log(result);
+                }
+                catch (error) {
+                    if (error instanceof Error) {
+                        console.log(chalk_1.default.red(error.message));
+                    }
+                    else {
+                        console.log(chalk_1.default.red('An unknown error occurred'));
+                    }
+                }
+                break;
+            case 'config':
+                try {
+                    if (args.length > 0 && args[0] === 'show') {
+                        await (0, config_1.showConfig)();
+                    }
+                    else {
+                        await (0, config_1.configureApp)();
+                    }
                 }
                 catch (error) {
                     if (error instanceof Error) {
@@ -515,6 +561,7 @@ class CeCliRepl {
         console.log(chalk_1.default.cyan('  import <wo-number>') + ' - Import notes from Medimizer');
         console.log(chalk_1.default.cyan('  open <wo-number>') + ' - Open a work order in Medimizer (browser stays open)');
         console.log(chalk_1.default.cyan('  del-dups <wo-number>') + ' - Delete duplicate services for a work order in Medimizer');
+        console.log(chalk_1.default.cyan('  delete-month <month> <year> <wo-number-or-list>') + ' - Delete LONNIE POLLOCKS services from a specific month/year');
         // Day tracking
         console.log(chalk_1.default.green('\nDay Tracking:'));
         console.log(chalk_1.default.cyan('  start-day') + ' - Start a new work day');
@@ -533,6 +580,8 @@ class CeCliRepl {
         console.log(chalk_1.default.cyan('  open-log <date-or-name>') + ' - Open a specific log entry');
         // General commands
         console.log(chalk_1.default.green('\nGeneral Commands:'));
+        console.log(chalk_1.default.cyan('  config') + ' - Configure application settings (including browser mode)');
+        console.log(chalk_1.default.cyan('  config show') + ' - Show current configuration');
         console.log(chalk_1.default.cyan('  help') + ' - Display this help information');
         console.log(chalk_1.default.cyan('  clear') + ' - Clear the screen');
         console.log(chalk_1.default.cyan('  exit') + ' - Exit the application');
